@@ -1,0 +1,1 @@
+web: gunicorn doomscrollr.wsgi:application

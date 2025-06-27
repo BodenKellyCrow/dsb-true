@@ -1,0 +1,9 @@
+Django>=4.2
+djangorestframework
+dj-rest-auth
+django-allauth
+djangorestframework-simplejwt
+gunicorn
+django-cors-headers
+Pillow
+python-decouple
