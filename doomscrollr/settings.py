@@ -105,3 +105,27 @@ ACCOUNT_EMAIL_REQUIRED = False
 
 # CORS
 CORS_ALLOW_ALL_ORIGINS = True
+
+INSTALLED_APPS = [
+    # Django core apps
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+
+    # 3rd-party apps
+    'rest_framework',
+    'rest_framework.authtoken',     # ✅ <-- Add this
+    'corsheaders',
+    'dj_rest_auth',
+    'django.contrib.sites',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'dj_rest_auth.registration',
+
+    # Your apps
+    'projects',
+]
