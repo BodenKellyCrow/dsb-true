@@ -3,6 +3,7 @@ from .serializers import ProjectSerializer, TransactionSerializer
 from rest_framework import viewsets, permissions
 from .models import Project, Transaction, UserProfile
 from .serializers import ProjectSerializer, TransactionSerializer, UserProfileSerializer
+from rest_framework.exceptions import ValidationError
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -20,21 +21,32 @@ class TransactionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        # Custom logic: deduct from sender, add to receiver/project
-        transaction = serializer.save(sender=self.request.user)
+        sender = self.request.user
+        receiver = serializer.validated_data['receiver']
+        project = serializer.validated_data['project']
+        amount = serializer.validated_data['amount']
+
+        # Safety checks
+        if sender == receiver:
+            raise ValidationError("You cannot send money to yourself.")
+        if amount <= 0:
+            raise ValidationError("Transaction amount must be greater than zero.")
+        if sender.profile.balance < amount:
+            raise ValidationError("Insufficient funds.")
+
+        # Save transaction
+        transaction = serializer.save(sender=sender)
 
         # Update project funding
-        project = transaction.project
-        project.current_funding += transaction.amount
+        project.current_funding += amount
         project.save()
 
-        # Update user balances if needed (optional)
-        sender_profile = self.request.user.profile
-        receiver_profile = transaction.receiver.profile
-        sender_profile.balance -= transaction.amount
-        receiver_profile.balance += transaction.amount
-        sender_profile.save()
-        receiver_profile.save()
+        # Update balances
+        sender.profile.balance -= amount
+        sender.profile.save()
+
+        receiver.profile.balance += amount
+        receiver.profile.save()
 
 
 class UserProfileViewSet(viewsets.ModelViewSet):
