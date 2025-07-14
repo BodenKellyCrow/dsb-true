@@ -1,8 +1,12 @@
-from django.urls import path
-from . import views
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import ProjectViewSet, TransactionViewSet, UserProfileViewSet
+
+router = DefaultRouter()
+router.register(r'projects', ProjectViewSet, basename='project')
+router.register(r'transactions', TransactionViewSet, basename='transaction')
+router.register(r'profiles', UserProfileViewSet, basename='profile')
 
 urlpatterns = [
-    path('projects/', views.project_list, name='project_list'),
-    path('projects/<int:pk>/', views.project_detail, name='project_detail'),
-    path('projects/<int:pk>/fund/', views.fund_project, name='fund_project'),
+    path('', include(router.urls)),
 ]

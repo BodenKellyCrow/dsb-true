@@ -1,54 +1,43 @@
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
-
 from .models import Project, Transaction
 from .serializers import ProjectSerializer, TransactionSerializer
+from rest_framework import viewsets, permissions
+from .models import Project, Transaction, UserProfile
+from .serializers import ProjectSerializer, TransactionSerializer, UserProfileSerializer
 
-@api_view(['GET'])
-def project_list(request):
-    projects = Project.objects.all()
-    serializer = ProjectSerializer(projects, many=True)
-    return Response(serializer.data)
 
-@api_view(['GET'])
-def project_detail(request, pk):
-    try:
-        project = Project.objects.get(pk=pk)
-    except Project.DoesNotExist:
-        return Response({'error': 'Project not found'}, status=404)
-    
-    serializer = ProjectSerializer(project)
-    return Response(serializer.data)
+class ProjectViewSet(viewsets.ModelViewSet):
+    queryset = Project.objects.all().order_by('-created_at')
+    serializer_class = ProjectSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def fund_project(request, pk):
-    try:
-        project = Project.objects.get(pk=pk)
-    except Project.DoesNotExist:
-        return Response({'error': 'Project not found'}, status=404)
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
 
-    amount = request.data.get('amount')
-    if not amount:
-        return Response({'error': 'Amount is required'}, status=400)
 
-    try:
-        amount = float(amount)
-        if amount <= 0:
-            raise ValueError
-    except ValueError:
-        return Response({'error': 'Invalid amount'}, status=400)
+class TransactionViewSet(viewsets.ModelViewSet):
+    queryset = Transaction.objects.all().order_by('-timestamp')
+    serializer_class = TransactionSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-    transaction = Transaction.objects.create(
-        sender=request.user,
-        recipient=project.owner,
-        project=project,
-        amount=amount,
-    )
+    def perform_create(self, serializer):
+        # Custom logic: deduct from sender, add to receiver/project
+        transaction = serializer.save(sender=self.request.user)
 
-    project.amount_raised += amount
-    project.save()
+        # Update project funding
+        project = transaction.project
+        project.current_funding += transaction.amount
+        project.save()
 
-    return Response(TransactionSerializer(transaction).data, status=201)
+        # Update user balances if needed (optional)
+        sender_profile = self.request.user.profile
+        receiver_profile = transaction.receiver.profile
+        sender_profile.balance -= transaction.amount
+        receiver_profile.balance += transaction.amount
+        sender_profile.save()
+        receiver_profile.save()
+
+
+class UserProfileViewSet(viewsets.ModelViewSet):
+    queryset = UserProfile.objects.all()
+    serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
