@@ -31,3 +31,27 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return self.user.username
+
+# models.py (at the bottom)
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=User)
+def create_or_update_user_profile(sender, instance, created, **kwargs):
+    if created:
+        UserProfile.objects.create(user=instance)
+    else:
+        instance.profile.save()
+
+from django.contrib.auth import get_user_model
+User = get_user_model()
+
+
+class SocialPost(models.Model):
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='posts')
+    content = models.TextField()
+    image = models.ImageField(upload_to='social_posts/', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.author.username}'s post at {self.created_at}"

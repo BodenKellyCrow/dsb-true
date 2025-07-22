@@ -4,7 +4,12 @@ from rest_framework import viewsets, permissions
 from .models import Project, Transaction, UserProfile
 from .serializers import ProjectSerializer, TransactionSerializer, UserProfileSerializer
 from rest_framework.exceptions import ValidationError
+from rest_framework import generics
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from django.contrib.auth import get_user_model
 
+User = get_user_model()
 
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all().order_by('-created_at')
@@ -53,3 +58,28 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     queryset = UserProfile.objects.all()
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+class UserProjectsView(generics.ListAPIView):
+    serializer_class = ProjectSerializer
+
+    def get_queryset(self):
+        user_id = self.kwargs['user_id']
+        return Project.objects.filter(owner__id=user_id)
+
+
+class UserFundedProjectsView(APIView):
+    def get(self, request, user_id):
+        funded_project_ids = Transaction.objects.filter(
+            sender__id=user_id
+        ).values_list('project__id', flat=True).distinct()
+        projects = Project.objects.filter(id__in=funded_project_ids)
+        serializer = ProjectSerializer(projects, many=True)
+        return Response(serializer.data)
+    
+class UserProfileUpdateView(generics.UpdateAPIView):
+    queryset = UserProfile.objects.all()
+    serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user.profile

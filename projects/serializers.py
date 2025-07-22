@@ -8,7 +8,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Project
-        fields = '__all__'
+        fields = ['id', 'title', 'description', 'image', 'funding_goal', 'current_funding', 'owner']
 
 
 class TransactionSerializer(serializers.ModelSerializer):
@@ -19,10 +19,16 @@ class TransactionSerializer(serializers.ModelSerializer):
         model = Transaction
         fields = '__all__'
 
-
 class UserProfileSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(source='user.username', read_only=True)
-
     class Meta:
         model = UserProfile
-        fields = '__all__'
+        fields = ['bio', 'balance', 'profile_image']
+
+class UserSerializer(serializers.ModelSerializer):
+    profile = UserProfileSerializer()
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'profile']
+
+
