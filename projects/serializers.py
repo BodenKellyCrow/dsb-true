@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Project, Transaction, UserProfile
+from .models import Project, Transaction, UserProfile, SocialPost, Like, Comment
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -32,3 +32,25 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'email', 'profile']
 
 
+class CommentSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+
+    class Meta:
+        model = Comment
+        fields = ['id', 'user', 'content', 'created_at']
+
+class LikeSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+
+    class Meta:
+        model = Like
+        fields = ['id', 'user', 'created_at']
+
+class SocialPostSerializer(serializers.ModelSerializer):
+    author = UserSerializer(read_only=True)
+    likes = LikeSerializer(many=True, read_only=True)
+    comments = CommentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = SocialPost
+        fields = ['id', 'author', 'content', 'image', 'created_at', 'likes', 'comments']

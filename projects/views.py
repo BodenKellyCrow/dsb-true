@@ -8,6 +8,9 @@ from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
+from .models import SocialPost, Like, Comment
+from .serializers import SocialPostSerializer, CommentSerializer
+from rest_framework.decorators import api_view, permission_classes
 
 User = get_user_model()
 
@@ -83,3 +86,36 @@ class UserProfileUpdateView(generics.UpdateAPIView):
 
     def get_object(self):
         return self.request.user.profile
+    
+class SocialPostListCreateView(generics.ListCreateAPIView):
+    queryset = SocialPost.objects.all().order_by('-created_at')
+    serializer_class = SocialPostSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+class FeedView(generics.ListAPIView):
+    queryset = SocialPost.objects.all().order_by('-created_at')
+    serializer_class = SocialPostSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class LikePostView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, post_id):
+        post = SocialPost.objects.get(id=post_id)
+        like, created = Like.objects.get_or_create(post=post, user=request.user)
+        if not created:
+            like.delete()  # toggle
+        return Response({'liked': created})
+
+class AddCommentView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, post_id):
+        post = SocialPost.objects.get(id=post_id)
+        comment = Comment.objects.create(
+            post=post, user=request.user, content=request.data.get("content", "")
+        )
+        return Response(CommentSerializer(comment).data)

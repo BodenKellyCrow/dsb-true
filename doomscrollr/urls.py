@@ -8,7 +8,7 @@ urlpatterns = [
     path('api/', include('projects.urls')),  # ✅ add this if not there
     path('api/auth/', include('dj_rest_auth.urls')),  # login/logout
     path('api/auth/registration/', include('dj_rest_auth.registration.urls')),  # register
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 # Serve media files during development
 if settings.DEBUG:

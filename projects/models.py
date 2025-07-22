@@ -46,12 +46,19 @@ def create_or_update_user_profile(sender, instance, created, **kwargs):
 from django.contrib.auth import get_user_model
 User = get_user_model()
 
-
 class SocialPost(models.Model):
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='posts')
     content = models.TextField()
-    image = models.ImageField(upload_to='social_posts/', null=True, blank=True)
+    image = models.ImageField(upload_to='social_posts/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return f"{self.author.username}'s post at {self.created_at}"
+class Like(models.Model):
+    post = models.ForeignKey(SocialPost, on_delete=models.CASCADE, related_name='likes')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class Comment(models.Model):
+    post = models.ForeignKey(SocialPost, on_delete=models.CASCADE, related_name='comments')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
