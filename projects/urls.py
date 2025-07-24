@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ProjectViewSet, TransactionViewSet, UserProfileViewSet, UserProjectsView, UserFundedProjectsView, UserProfileUpdateView, SocialPostListCreateView, FeedView, LikePostView, AddCommentView
+from .views import ProjectViewSet, TransactionViewSet, UserProfileViewSet, UserProjectsView, UserFundedProjectsView, UserProfileUpdateView, SocialPostListCreateView, FeedView, LikePostView, AddCommentView, UserTransactionHistoryView, PublicUserListView, UserConversationsView, CreateConversationView, MessageListCreateView
 
 router = DefaultRouter()
 router.register(r'projects', ProjectViewSet, basename='project')
@@ -16,4 +16,9 @@ urlpatterns = [
     path('feed/', FeedView.as_view(), name='feed'),
     path('feed/<int:post_id>/like/', LikePostView.as_view(), name='like-post'),
     path('feed/<int:post_id>/comment/', AddCommentView.as_view(), name='comment-post'),
+    path('user-transactions/', UserTransactionHistoryView.as_view(), name='user-transactions'),
+    path('users/', PublicUserListView.as_view(), name='public-users'),
+    path('chat/conversations/', UserConversationsView.as_view(), name='chat-conversations'),
+    path('chat/conversations/create/', CreateConversationView.as_view(), name='chat-create-convo'),
+    path('chat/messages/<int:conversation_id>/', MessageListCreateView.as_view(), name='chat-messages'),
 ]
