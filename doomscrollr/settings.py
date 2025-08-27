@@ -112,6 +112,14 @@ ACCOUNT_USERNAME_REQUIRED = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ✅ CORS settings
-CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    "https://fictional-engine-v65564q97vxvcpgpp-5173.app.github.dev",
+    "https://doomscrollr.onrender.com",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://fictional-engine-v65564q97vxvcpgpp-5173.app.github.dev",
+    "https://doomscrollr.onrender.com",
+]
 
