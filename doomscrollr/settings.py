@@ -18,6 +18,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    # Third-party
     'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
@@ -28,14 +29,15 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'dj_rest_auth.registration',
 
+    # Local apps
     'projects',
 ]
 
 SITE_ID = 1
 
-# Middleware
+# Middleware (CorsMiddleware MUST come first)
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",   # ✅ must be at the top
+    "corsheaders.middleware.CorsMiddleware",   # ✅ must be first
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -45,7 +47,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-
 
 ROOT_URLCONF = 'doomscrollr.urls'
 
@@ -104,19 +105,16 @@ REST_FRAMEWORK = {
 
 # ✅ Allauth/Dj-rest-auth settings
 ACCOUNT_EMAIL_VERIFICATION = 'none'
-ACCOUNT_AUTHENTICATION_METHOD = "username_email"   # ✅ allow login with username OR email
+ACCOUNT_AUTHENTICATION_METHOD = "username_email"   # ✅ login with username OR email
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS
+# ✅ CORS settings
 CORS_ALLOW_CREDENTIALS = True
-
 CORS_ALLOWED_ORIGINS = [
-    "https://fictional-engine-v65564g97vxvcpgpp-5173.app.github.dev",  # GitHub Codespaces / Pages preview
-    "https://doomscrollr-frontend.onrender.com",  # your deployed frontend (if using Render frontend too)
-    "http://localhost:5173",  # local dev (vite)
+    "https://fictional-engine-v65564g97vxvcpgpp-5173.app.github.dev",  # GitHub Codespaces frontend
+    "http://localhost:5173",   # Local Vite dev
     "http://127.0.0.1:5173",
 ]
-
