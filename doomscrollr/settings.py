@@ -37,7 +37,7 @@ SITE_ID = 1
 
 # Middleware (CorsMiddleware MUST come first)
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",   # ✅ must be first
+    "corsheaders.middleware.CorsMiddleware",   # ✅ must be very first
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -114,12 +114,13 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ✅ CORS settings
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    "https://fictional-engine-v65564q97vxvcpgpp-5173.app.github.dev",
-    "https://doomscrollr.onrender.com",
+    "https://fictional-engine-v65564q97vxvcppgp-5173.app.github.dev",  # your GitHub frontend
 ]
+# ⚠️ do NOT include doomscrollr.onrender.com here — that’s your backend, not a frontend making requests
 
+# ✅ CSRF trusted origins (must match backend + frontend)
 CSRF_TRUSTED_ORIGINS = [
-    "https://fictional-engine-v65564q97vxvcpgpp-5173.app.github.dev",
-    "https://doomscrollr.onrender.com",
+    "https://fictional-engine-v65564q97vxvcppgp-5173.app.github.dev",
+    "https://doomscrollr.onrender.com",  # backend origin must be trusted for cookies/CSRF
 ]
 
