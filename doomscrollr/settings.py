@@ -112,15 +112,22 @@ ACCOUNT_USERNAME_REQUIRED = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ✅ CORS settings
+# ✅ CORS settings
 CORS_ALLOW_CREDENTIALS = True
+
+# Use regex to allow GitHub Codespaces + Render (safer than hardcoding a typo)
 CORS_ALLOWED_ORIGINS = [
-    "https://fictional-engine-v65564q97vxvcppgp-5173.app.github.dev",  # your GitHub frontend
-]
-# ⚠️ do NOT include doomscrollr.onrender.com here — that’s your backend, not a frontend making requests
-
-# ✅ CSRF trusted origins (must match backend + frontend)
-CSRF_TRUSTED_ORIGINS = [
+    "https://doomscrollr.onrender.com",
     "https://fictional-engine-v65564q97vxvcppgp-5173.app.github.dev",
-    "https://doomscrollr.onrender.com",  # backend origin must be trusted for cookies/CSRF
 ]
 
+# Allow wildcard subdomains for GitHub Codespaces if URL changes
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.github\.dev$",
+]
+
+# ✅ CSRF
+CSRF_TRUSTED_ORIGINS = [
+    "https://doomscrollr.onrender.com",
+    "https://fictional-engine-v65564q97vxvcppgp-5173.app.github.dev",
+]
