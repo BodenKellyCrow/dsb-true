@@ -112,9 +112,6 @@ ACCOUNT_USERNAME_REQUIRED = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ✅ CORS settings
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "https://fictional-engine-v65564g97vxvcpgpp-5173.app.github.dev",  # GitHub Codespaces frontend
-    "http://localhost:5173",   # Local Vite dev
-    "http://127.0.0.1:5173",
-]
+
