@@ -81,6 +81,8 @@ DATABASES = {
         ssl_require=True
     )
 }
+if 'postgres' in os.environ.get('DATABASE_URL', ''):
+    DATABASES['default']['ENGINE'] = 'django.db.backends.postgresql'
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
