@@ -1,13 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import ProjectViewSet, TransactionViewSet, UserProfileViewSet, UserProjectsView, UserFundedProjectsView, UserProfileUpdateView, SocialPostListCreateView, FeedView, LikePostView, AddCommentView, UserTransactionHistoryView, PublicUserListView, UserConversationsView, CreateConversationView, MessageListCreateView
-from django.http import HttpResponse
-from django.core.management import call_command
-
-def run_migrations(request):
-    # Run Django migrations
-    call_command('migrate')
-    return HttpResponse("✅ Migrations applied successfully!")
 
 
 router = DefaultRouter()
@@ -29,5 +22,4 @@ urlpatterns = [
     path('chat/conversations/', UserConversationsView.as_view(), name='chat-conversations'),
     path('chat/conversations/create/', CreateConversationView.as_view(), name='chat-create-convo'),
     path('chat/messages/<int:conversation_id>/', MessageListCreateView.as_view(), name='chat-messages'),
-    path("run-migrations/", run_migrations),
 ]
