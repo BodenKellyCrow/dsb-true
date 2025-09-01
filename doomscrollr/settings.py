@@ -122,9 +122,15 @@ REST_FRAMEWORK = {
 
 # ✅ Allauth/Dj-rest-auth settings
 ACCOUNT_EMAIL_VERIFICATION = 'none'
-ACCOUNT_AUTHENTICATION_METHOD = "username_email"   # ✅ login with username OR email
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_USERNAME_REQUIRED = True
+ACCOUNT_LOGIN_METHODS = {'username', 'email'}
+
+ACCOUNT_SIGNUP_FIELDS = [
+    'email*',       # * means required
+    'username*',
+    'password1*',
+    'password2*'
+]
+
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
