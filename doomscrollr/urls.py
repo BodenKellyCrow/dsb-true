@@ -5,6 +5,16 @@ from django.conf.urls.static import static
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 from django.core.management import call_command
+from projects.models import Profile
+
+def fix_admin_profile(request):
+    User = get_user_model()
+    try:
+        admin_user = User.objects.get(username="admin")
+        Profile.objects.get_or_create(user=admin_user)
+        return HttpResponse("✅ Admin profile created/fixed")
+    except User.DoesNotExist:
+        return HttpResponse("⚠️ Admin user not found")
 
 # ✅ Helper to run migrations from browser
 def run_migrations(request):
@@ -46,6 +56,7 @@ urlpatterns = [
     path("run-migrations/", run_migrations),
     path("check-superuser/", check_superuser),
     path("create-superuser/", create_superuser),
+    path("fix-admin-profile/", fix_admin_profile),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 # Serve media files during development
