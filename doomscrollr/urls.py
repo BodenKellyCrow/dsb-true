@@ -5,14 +5,14 @@ from django.conf.urls.static import static
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 from django.core.management import call_command
-from projects.models import Profile
+from projects.models import UserProfile
 
 def fix_admin_profile(request):
     try:
-        from projects.models import Profile  # ✅ import inside so we catch errors
+        from projects.models import UserProfile  # ✅ import inside so we catch errors
         User = get_user_model()
         admin_user = User.objects.get(username="admin")
-        profile, created = Profile.objects.get_or_create(user=admin_user)
+        profile, created = UserProfile.objects.get_or_create(user=admin_user)
         if created:
             return HttpResponse("✅ Admin profile created successfully")
         else:
