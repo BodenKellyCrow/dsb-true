@@ -8,13 +8,17 @@ from django.core.management import call_command
 from projects.models import Profile
 
 def fix_admin_profile(request):
-    User = get_user_model()
     try:
+        from projects.models import Profile  # ✅ import inside so we catch errors
+        User = get_user_model()
         admin_user = User.objects.get(username="admin")
-        Profile.objects.get_or_create(user=admin_user)
-        return HttpResponse("✅ Admin profile created/fixed")
-    except User.DoesNotExist:
-        return HttpResponse("⚠️ Admin user not found")
+        profile, created = Profile.objects.get_or_create(user=admin_user)
+        if created:
+            return HttpResponse("✅ Admin profile created successfully")
+        else:
+            return HttpResponse("⚠️ Admin profile already existed")
+    except Exception as e:
+        return HttpResponse(f"❌ Error: {str(e)}")
 
 # ✅ Helper to run migrations from browser
 def run_migrations(request):
