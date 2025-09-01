@@ -146,5 +146,5 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 # ✅ CSRF
 CSRF_TRUSTED_ORIGINS = [
     "https://doomscrollr.onrender.com",
-    "https://fictional-engine-v65564q97vxvcppgp-5173.app.github.dev",
+    "https://*.github.dev",   # ✅ wildcard for Codespaces
 ]
