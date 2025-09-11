@@ -7,9 +7,9 @@ from django.http import HttpResponse
 from django.core.management import call_command
 from projects.models import UserProfile
 
+# ✅ Admin profile fixer
 def fix_admin_profile(request):
     try:
-        from projects.models import UserProfile  # ✅ import inside so we catch errors
         User = get_user_model()
         admin_user = User.objects.get(username="admin")
         profile, created = UserProfile.objects.get_or_create(user=admin_user)
@@ -20,7 +20,7 @@ def fix_admin_profile(request):
     except Exception as e:
         return HttpResponse(f"❌ Error: {str(e)}")
 
-# ✅ Helper to run migrations from browser
+# ✅ Run migrations from browser
 def run_migrations(request):
     try:
         call_command("makemigrations", "projects")
@@ -29,7 +29,7 @@ def run_migrations(request):
     except Exception as e:
         return HttpResponse(f"❌ Migration error: {e}")
 
-# ✅ Helper to check if superuser exists
+# ✅ Check if superuser exists
 def check_superuser(request):
     User = get_user_model()
     if User.objects.filter(is_superuser=True).exists():
@@ -37,7 +37,7 @@ def check_superuser(request):
     else:
         return HttpResponse("❌ No superuser found.")
 
-# ✅ Helper to create a superuser
+# ✅ Create a default superuser
 def create_superuser(request):
     User = get_user_model()
     username = "admin"
@@ -50,11 +50,27 @@ def create_superuser(request):
     else:
         return HttpResponse("⚠️ Superuser already exists.")
 
+# ✅ Import JWT views
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+)
+
 urlpatterns = [
     path('admin/', admin.site.urls),
+
+    # Project app API
     path('api/', include('projects.urls')),  
+
+    # dj-rest-auth endpoints
     path('api/auth/', include('dj_rest_auth.urls')),  
     path('api/auth/registration/', include('dj_rest_auth.registration.urls')),  
+
+    # JWT endpoints (needed for React frontend login/refresh)
+    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("api/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
 
     # 🔧 Temporary helpers
     path("run-migrations/", run_migrations),
