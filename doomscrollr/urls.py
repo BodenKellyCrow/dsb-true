@@ -57,6 +57,18 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
+def fix_missing_profiles(request):
+    User = get_user_model()
+    created_count = 0
+
+    for user in User.objects.all():
+        profile, created = UserProfile.objects.get_or_create(user=user)
+        if created:
+            created_count += 1
+
+    return HttpResponse(f"✅ Created {created_count} missing profiles.")
+
+
 urlpatterns = [
     path('admin/', admin.site.urls),
 
@@ -77,6 +89,7 @@ urlpatterns = [
     path("check-superuser/", check_superuser),
     path("create-superuser/", create_superuser),
     path("fix-admin-profile/", fix_admin_profile),
+    path("fix-missing-profiles/", fix_missing_profiles),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 # Serve media files during development
