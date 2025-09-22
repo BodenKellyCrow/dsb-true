@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-import dj_database_url 
+import dj_database_url
 from dotenv import load_dotenv
 from datetime import timedelta
 
@@ -106,56 +106,54 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # REST & Auth
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
-    # ✅ Force JSON responses (fixes HTML error issue)
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",  # ✅ Only JWT
     ],
-    'DEFAULT_PARSER_CLASSES': [
-        'rest_framework.parsers.JSONParser',
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticatedOrReadOnly",
+    ],
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",  # ✅ Only JSON, no HTML
+    ],
+    "DEFAULT_PARSER_CLASSES": [
+        "rest_framework.parsers.JSONParser",
+        "rest_framework.parsers.FormParser",
+        "rest_framework.parsers.MultiPartParser",  # ✅ allow file/image uploads
     ],
 }
-
 
 # ✅ Tell dj-rest-auth to use JWT
 REST_USE_JWT = True
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'AUTH_HEADER_TYPES': ('Bearer',),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
-
 # ✅ Allauth/Dj-rest-auth settings
-ACCOUNT_EMAIL_VERIFICATION = 'none'
-ACCOUNT_LOGIN_METHODS = {'username', 'email'}
+ACCOUNT_EMAIL_VERIFICATION = "none"
+ACCOUNT_LOGIN_METHODS = {"username", "email"}
 
 ACCOUNT_SIGNUP_FIELDS = [
-    'email*',       # * means required
-    'username*',
-    'password1*',
-    'password2*'
+    "email*",
+    "username*",
+    "password1*",
+    "password2*"
 ]
-
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ✅ CORS settings
-# ✅ CORS settings
 CORS_ALLOW_CREDENTIALS = True
 
-# Use regex to allow GitHub Codespaces + Render (safer than hardcoding a typo)
 CORS_ALLOWED_ORIGINS = [
     "https://doomscrollr.onrender.com",
     "https://fictional-engine-v65564q97vxvcppgp-5173.app.github.dev",
 ]
 
-# Allow wildcard subdomains for GitHub Codespaces if URL changes
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.github\.dev$",
 ]
