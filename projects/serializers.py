@@ -7,18 +7,33 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = ['bio', 'balance', 'profile_image']
+        read_only_fields = ['balance']  # users shouldn’t edit balance directly
 
 
 class UserSerializer(serializers.ModelSerializer):
-    profile = UserProfileSerializer(read_only=True)  # ✅ prevent write issues
+    # ✅ Allow nested profile updates
+    profile = UserProfileSerializer(required=False)
 
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'profile']
 
+    def update(self, instance, validated_data):
+        # Extract nested profile data if present
+        profile_data = validated_data.pop('profile', {})
+        instance = super().update(instance, validated_data)
+
+        # Update or create profile
+        if profile_data:
+            UserProfile.objects.update_or_create(
+                user=instance,
+                defaults=profile_data
+            )
+
+        return instance
+
 
 class PublicUserSerializer(serializers.ModelSerializer):
-    # ✅ Shortcut serializer for lists (Explore page)
     profile_image = serializers.ImageField(source='profile.profile_image', read_only=True)
 
     class Meta:
@@ -27,7 +42,7 @@ class PublicUserSerializer(serializers.ModelSerializer):
 
 
 class ProjectSerializer(serializers.ModelSerializer):
-    owner = UserSerializer(read_only=True)  # ✅ nested owner with profile
+    owner = UserSerializer(read_only=True)
     owner_username = serializers.CharField(source='owner.username', read_only=True)
 
     class Meta:
