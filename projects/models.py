@@ -1,7 +1,4 @@
 from django.db import models
-from django.contrib.auth.models import User
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -39,9 +36,9 @@ class Transaction(models.Model):
 # -------------------------------
 class UserProfile(models.Model):
     user = models.OneToOneField(
-        User, 
-        on_delete=models.CASCADE, 
-        related_name='userprofile'  # <-- now user.userprofile will always work
+        User,
+        on_delete=models.CASCADE,
+        related_name='userprofile'  # <-- ensures user.userprofile works
     )
     bio = models.TextField(blank=True, null=True)
     balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
@@ -49,16 +46,6 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return self.user.username
-
-
-@receiver(post_save, sender=User)
-def create_or_update_user_profile(sender, instance, created, **kwargs):
-    if created:
-        UserProfile.objects.create(user=instance)
-    else:
-        # get_or_create ensures a profile exists, then save it
-        profile, _ = UserProfile.objects.get_or_create(user=instance)
-        profile.save()
 
 
 # -------------------------------
