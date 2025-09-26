@@ -107,13 +107,13 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # REST & Auth
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",  # ✅ Only JWT
+        "rest_framework_simplejwt.authentication.JWTAuthentication",  # ✅ JWT only
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",
     ],
     "DEFAULT_RENDERER_CLASSES": [
-        "rest_framework.renderers.JSONRenderer",  # ✅ Only JSON, no HTML
+        "rest_framework.renderers.JSONRenderer",  # ✅ Force JSON only
     ],
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
