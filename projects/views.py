@@ -1,165 +1,160 @@
-from .models import Project, Transaction, UserProfile, SocialPost, Like, Comment, Conversation, Message
-from .serializers import (
-    ProjectSerializer, TransactionSerializer,
-    UserProfileSerializer, UserSerializer, PublicUserSerializer,
-    SocialPostSerializer, CommentSerializer,
-    ConversationSerializer, MessageSerializer
-)
-from rest_framework import viewsets, permissions, generics
-from rest_framework.exceptions import ValidationError
+from django.contrib.auth import get_user_model, update_session_auth_hash
+from rest_framework import generics, status, viewsets
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
-from django.contrib.auth import get_user_model
+from .models import Project, Transaction, SocialPost, Conversation, Message, UserProfile
+from .serializers import (
+    ProjectSerializer, TransactionSerializer,
+    UserProfileSerializer, PublicUserSerializer,
+    SocialPostSerializer, CommentSerializer,
+    ConversationSerializer, MessageSerializer,
+)
 from django.db.models import Q
 
 User = get_user_model()
 
-
 # -------------------
-# PROJECTS + FUNDING
-# -------------------
-class ProjectViewSet(viewsets.ModelViewSet):
-    queryset = Project.objects.all().order_by('-created_at')
-    serializer_class = ProjectSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    parser_classes = [MultiPartParser, FormParser]
-
-    def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
-
-
-class TransactionViewSet(viewsets.ModelViewSet):
-    queryset = Transaction.objects.all().order_by('-timestamp')
-    serializer_class = TransactionSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def perform_create(self, serializer):
-        sender = self.request.user
-        receiver = serializer.validated_data['receiver']
-        project = serializer.validated_data['project']
-        amount = serializer.validated_data['amount']
-
-        if sender == receiver:
-            raise ValidationError("You cannot send money to yourself.")
-        if amount <= 0:
-            raise ValidationError("Transaction amount must be greater than zero.")
-        if sender.profile.balance < amount:
-            raise ValidationError("Insufficient funds.")
-
-        # Save transaction
-        transaction = serializer.save(sender=sender)
-
-        # Update balances + project funding
-        sender.profile.balance -= amount
-        sender.profile.save()
-
-        receiver.profile.balance += amount
-        receiver.profile.save()
-
-        project.current_funding += amount
-        project.save()
-
-
-# -------------------
-# USER PROFILES
+# USER PROFILE
 # -------------------
 class MeView(APIView):
-    """
-    GET = fetch logged-in user's profile
-    PUT/PATCH = update username, email, bio, profile_image
-    """
     permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
 
     def get(self, request):
-        serializer = UserSerializer(request.user)
+        serializer = UserProfileSerializer(request.user.profile, context={"request": request})
         return Response(serializer.data)
 
     def put(self, request):
-        serializer = UserSerializer(request.user, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
+        serializer = UserProfileSerializer(request.user.profile, data=request.data, partial=True, context={"request": request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PublicUserListView(APIView):
-    permission_classes = [IsAuthenticatedOrReadOnly]
-
-    def get(self, request):
-        users = User.objects.all()
-        serializer = PublicUserSerializer(users, many=True)
-        return Response(serializer.data)
+class PublicUserListView(generics.ListAPIView):
+    queryset = UserProfile.objects.select_related("user").all()
+    serializer_class = PublicUserSerializer
+    permission_classes = [AllowAny]
 
 
 class UserProjectsView(generics.ListAPIView):
     serializer_class = ProjectSerializer
 
     def get_queryset(self):
-        user_id = self.kwargs['user_id']
-        return Project.objects.filter(owner__id=user_id)
+        return Project.objects.filter(owner_id=self.kwargs["user_id"])
 
 
-class UserFundedProjectsView(APIView):
-    def get(self, request, user_id):
+class UserFundedProjectsView(generics.ListAPIView):
+    serializer_class = ProjectSerializer
+
+    def get_queryset(self):
         funded_project_ids = Transaction.objects.filter(
-            sender__id=user_id
-        ).values_list('project__id', flat=True).distinct()
-        projects = Project.objects.filter(id__in=funded_project_ids)
-        serializer = ProjectSerializer(projects, many=True)
-        return Response(serializer.data)
+            sender_id=self.kwargs["user_id"]
+        ).values_list("project_id", flat=True)
+        return Project.objects.filter(id__in=funded_project_ids)
 
 
-class UserTransactionHistoryView(APIView):
+class UserTransactionHistoryView(generics.ListAPIView):
+    serializer_class = TransactionSerializer
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        transactions = Transaction.objects.filter(sender=request.user).select_related('project')
-        serializer = TransactionSerializer(transactions, many=True)
-        return Response(serializer.data)
+    def get_queryset(self):
+        return Transaction.objects.filter(Q(sender=self.request.user) | Q(receiver=self.request.user))
+
+
+# -------------------
+# PASSWORD MANAGEMENT
+# -------------------
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        old_password = request.data.get("old_password")
+        new_password = request.data.get("new_password")
+
+        if not old_password or not new_password:
+            return Response({"error": "Both old and new passwords are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not user.check_password(old_password):
+            return Response({"error": "Wrong password"}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+        update_session_auth_hash(request, user)  # ✅ keeps session alive
+
+        return Response({"status": "password changed successfully"}, status=status.HTTP_200_OK)
+
+
+# -------------------
+# PROJECTS & TRANSACTIONS
+# -------------------
+class ProjectViewSet(viewsets.ModelViewSet):
+    queryset = Project.objects.all().select_related("owner")
+    serializer_class = ProjectSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+
+class TransactionViewSet(viewsets.ModelViewSet):
+    queryset = Transaction.objects.all()
+    serializer_class = TransactionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(sender=self.request.user)
 
 
 # -------------------
 # SOCIAL POSTS
 # -------------------
 class SocialPostListCreateView(generics.ListCreateAPIView):
-    queryset = SocialPost.objects.all().order_by('-created_at')
+    queryset = SocialPost.objects.all().select_related("author")
     serializer_class = SocialPostSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
 
 class FeedView(generics.ListAPIView):
-    queryset = SocialPost.objects.all().order_by('-created_at')
+    queryset = SocialPost.objects.all().select_related("author").order_by("-created_at")
     serializer_class = SocialPostSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
 
 class LikePostView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, post_id):
-        post = SocialPost.objects.get(id=post_id)
-        like, created = Like.objects.get_or_create(post=post, user=request.user)
-        if not created:
-            like.delete()  # toggle
-        return Response({'liked': created})
+        try:
+            post = SocialPost.objects.get(id=post_id)
+            if request.user in post.likes.all():
+                post.likes.remove(request.user)
+                return Response({"status": "unliked"})
+            else:
+                post.likes.add(request.user)
+                return Response({"status": "liked"})
+        except SocialPost.DoesNotExist:
+            return Response({"error": "Post not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 class AddCommentView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, post_id):
-        post = SocialPost.objects.get(id=post_id)
-        comment = Comment.objects.create(
-            post=post, user=request.user, content=request.data.get("content", "")
-        )
-        return Response(CommentSerializer(comment).data)
+        try:
+            post = SocialPost.objects.get(id=post_id)
+            serializer = CommentSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save(author=request.user, post=post)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except SocialPost.DoesNotExist:
+            return Response({"error": "Post not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 # -------------------
@@ -167,53 +162,27 @@ class AddCommentView(APIView):
 # -------------------
 class UserConversationsView(generics.ListAPIView):
     serializer_class = ConversationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        return Conversation.objects.filter(Q(user1=user) | Q(user2=user))
+        return Conversation.objects.filter(participants=self.request.user)
 
 
 class CreateConversationView(generics.CreateAPIView):
     serializer_class = ConversationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
-    def create(self, request, *args, **kwargs):
-        user1 = request.user
-        user2_id = request.data.get('user2')
-
-        if not user2_id:
-            return Response({'error': 'user2 is required'}, status=400)
-
-        try:
-            user2 = User.objects.get(id=user2_id)
-        except User.DoesNotExist:
-            return Response({'error': 'user not found'}, status=404)
-
-        # Ensure unique conversation
-        ordered_users = sorted([user1.id, user2.id])
-        existing = Conversation.objects.filter(
-            user1_id=ordered_users[0], user2_id=ordered_users[1]
-        ).first()
-
-        if existing:
-            serializer = self.get_serializer(existing)
-            return Response(serializer.data)
-
-        conversation = Conversation.objects.create(
-            user1_id=ordered_users[0], user2_id=ordered_users[1]
-        )
-        serializer = self.get_serializer(conversation)
-        return Response(serializer.data)
+    def perform_create(self, serializer):
+        conversation = serializer.save()
+        conversation.participants.add(self.request.user)
 
 
 class MessageListCreateView(generics.ListCreateAPIView):
     serializer_class = MessageSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        conversation_id = self.kwargs['conversation_id']
-        return Message.objects.filter(conversation_id=conversation_id).order_by('timestamp')
+        return Message.objects.filter(conversation_id=self.kwargs["conversation_id"])
 
     def perform_create(self, serializer):
-        serializer.save(sender=self.request.user)
+        serializer.save(sender=self.request.user, conversation_id=self.kwargs["conversation_id"])

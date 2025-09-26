@@ -40,7 +40,7 @@ SITE_ID = 1
 
 # Middleware (CorsMiddleware MUST come first)
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",   # ✅ must be very first
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -73,10 +73,8 @@ WSGI_APPLICATION = 'doomscrollr.wsgi.application'
 
 # Database
 load_dotenv()
-
 DATABASES = {
     'default': dj_database_url.config(
-        # Use DATABASE_URL from environment variables
         default=os.environ.get("DATABASE_URL"),
         conn_max_age=600,
         ssl_require=True
@@ -107,46 +105,41 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # REST & Auth
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",  # ✅ JWT only
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",
     ],
     "DEFAULT_RENDERER_CLASSES": [
-        "rest_framework.renderers.JSONRenderer",  # ✅ Force JSON only
+        "rest_framework.renderers.JSONRenderer",
     ],
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
         "rest_framework.parsers.FormParser",
-        "rest_framework.parsers.MultiPartParser",  # ✅ allow file/image uploads
+        "rest_framework.parsers.MultiPartParser",
     ],
 }
 
-# ✅ Tell dj-rest-auth to use JWT
+# dj-rest-auth with JWT
 REST_USE_JWT = True
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),  # ⏳ extend lifetime
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
-# ✅ Allauth/Dj-rest-auth settings
+# Allauth / dj-rest-auth
 ACCOUNT_EMAIL_VERIFICATION = "none"
-ACCOUNT_LOGIN_METHODS = {"username", "email"}
-
-ACCOUNT_SIGNUP_FIELDS = [
-    "email*",
-    "username*",
-    "password1*",
-    "password2*"
-]
+ACCOUNT_AUTHENTICATION_METHOD = "username"
+ACCOUNT_EMAIL_REQUIRED = False
+ACCOUNT_USERNAME_REQUIRED = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# ✅ CORS settings
+# CORS settings
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
@@ -158,8 +151,8 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.github\.dev$",
 ]
 
-# ✅ CSRF
+# CSRF
 CSRF_TRUSTED_ORIGINS = [
     "https://doomscrollr.onrender.com",
-    "https://*.github.dev",   # ✅ wildcard for Codespaces
+    "https://*.github.dev",
 ]

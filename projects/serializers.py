@@ -1,48 +1,71 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Project, Transaction, UserProfile, SocialPost, Like, Comment, Conversation, Message
+from .models import (
+    Project, Transaction, UserProfile,
+    SocialPost, Like, Comment,
+    Conversation, Message
+)
 
 
+# -------------------
+# USER + PROFILE
+# -------------------
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = ['bio', 'balance', 'profile_image']
-        read_only_fields = ['balance']  # users shouldn’t edit balance directly
+        read_only_fields = ['balance']  # balance should not be edited by users
 
 
 class UserSerializer(serializers.ModelSerializer):
-    # ✅ Allow nested profile updates
-    profile = UserProfileSerializer(required=False)
+    # Flattened profile fields
+    bio = serializers.CharField(source="profile.bio", required=False, allow_blank=True)
+    profile_image = serializers.ImageField(source="profile.profile_image", required=False, allow_null=True)
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'profile']
+        fields = ['id', 'username', 'email', 'bio', 'profile_image']
 
     def update(self, instance, validated_data):
-        # Extract nested profile data if present
-        profile_data = validated_data.pop('profile', {})
+        # Extract nested profile data
+        profile_data = validated_data.pop("profile", {})
+        bio = validated_data.pop("bio", None)
+        profile_image = validated_data.pop("profile_image", None)
+
+        # Update User base fields
         instance = super().update(instance, validated_data)
 
-        # Update or create profile
+        # Ensure profile exists
+        profile, _ = UserProfile.objects.get_or_create(user=instance)
+
+        # Update profile fields
         if profile_data:
-            UserProfile.objects.update_or_create(
-                user=instance,
-                defaults=profile_data
-            )
+            for attr, value in profile_data.items():
+                setattr(profile, attr, value)
+        if bio is not None:
+            profile.bio = bio
+        if profile_image is not None:
+            profile.profile_image = profile_image
+        profile.save()
 
         return instance
 
 
 class PublicUserSerializer(serializers.ModelSerializer):
-    profile_image = serializers.ImageField(source='profile.profile_image', read_only=True)
+    bio = serializers.CharField(source="profile.bio", read_only=True)
+    profile_image = serializers.ImageField(source="profile.profile_image", read_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'profile_image']
+        fields = ['id', 'username', 'bio', 'profile_image']
+        # 🚫 Removed email for privacy
 
 
+# -------------------
+# PROJECTS + FUNDING
+# -------------------
 class ProjectSerializer(serializers.ModelSerializer):
-    owner = UserSerializer(read_only=True)
+    owner = PublicUserSerializer(read_only=True)  # return limited info about owner
     owner_username = serializers.CharField(source='owner.username', read_only=True)
 
     class Meta:
@@ -64,8 +87,11 @@ class TransactionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+# -------------------
+# SOCIAL POSTS
+# -------------------
 class CommentSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
+    user = PublicUserSerializer(read_only=True)
 
     class Meta:
         model = Comment
@@ -73,7 +99,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
 
 class LikeSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
+    user = PublicUserSerializer(read_only=True)
 
     class Meta:
         model = Like
@@ -81,7 +107,7 @@ class LikeSerializer(serializers.ModelSerializer):
 
 
 class SocialPostSerializer(serializers.ModelSerializer):
-    author = UserSerializer(read_only=True)
+    author = PublicUserSerializer(read_only=True)
     likes = LikeSerializer(many=True, read_only=True)
     comments = CommentSerializer(many=True, read_only=True)
 
@@ -90,6 +116,9 @@ class SocialPostSerializer(serializers.ModelSerializer):
         fields = ['id', 'author', 'content', 'image', 'created_at', 'likes', 'comments']
 
 
+# -------------------
+# MESSAGING
+# -------------------
 class ConversationSerializer(serializers.ModelSerializer):
     user1_username = serializers.CharField(source='user1.username', read_only=True)
     user2_username = serializers.CharField(source='user2.username', read_only=True)
