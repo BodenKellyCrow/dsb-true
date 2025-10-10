@@ -71,20 +71,21 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "doomscrollr.wsgi.application"
 
-# Database
+# --- Database (Supabase connection) ---
 load_dotenv()
-DATABASE_URL = os.environ.get("SUPABASE_DB_URL") or os.environ.get("DATABASE_URL")
+
 DATABASES = {
     "default": dj_database_url.config(
-        default=DATABASE_URL,
+        default=os.environ.get("DATABASE_URL"),
         conn_max_age=600,
         ssl_require=True,
     )
 }
 
-# Force Postgres engine
-if DATABASE_URL and "postgres" in DATABASE_URL:
+# Force PostgreSQL engine if using Supabase or Render
+if "postgres" in os.environ.get("DATABASE_URL", ""):
     DATABASES["default"]["ENGINE"] = "django.db.backends.postgresql"
+
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
