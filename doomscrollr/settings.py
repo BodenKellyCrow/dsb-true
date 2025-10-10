@@ -147,15 +147,15 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
-    "https://doomscrollr.onrender.com",
-    "https://fictional-engine-v65564q97vxvcppgp-5173.app.github.dev",
+    "https://doomscrollr.onrender.com",  # Backend
+    "https://*.github.dev",              # GitHub Codespaces frontend
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.github\.dev$",
 ]
 
-# CSRF
+# CSRF settings
 CSRF_TRUSTED_ORIGINS = [
     "https://doomscrollr.onrender.com",
     "https://*.github.dev",
