@@ -38,9 +38,8 @@ INSTALLED_APPS = [
 
 SITE_ID = 1
 
-# Middleware
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
+    "corsheaders.middleware.CorsMiddleware",       # 👈 Must be very top
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
