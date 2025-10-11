@@ -43,6 +43,7 @@ class UserProfile(models.Model):
     bio = models.TextField(blank=True, null=True)
     balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     profile_image = models.ImageField(upload_to='profile_images/', null=True, blank=True)
+    AUTH_USER_MODEL = "projects.UserProfile"
 
     def __str__(self):
         return self.user.username

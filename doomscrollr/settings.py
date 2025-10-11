@@ -118,8 +118,8 @@ REST_FRAMEWORK = {
 
 REST_USE_JWT = True
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
@@ -133,16 +133,26 @@ ACCOUNT_USERNAME_REQUIRED = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# CORS
+# --- CORS / CSRF ---
 CORS_ALLOW_CREDENTIALS = True
+
 CORS_ALLOWED_ORIGINS = [
     "https://doomscrollr.onrender.com",
     "https://*.github.dev",
+    "https://*.codespaces.github.io",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
-CORS_ALLOWED_ORIGIN_REGEXES = [r"^https://.*\.github\.dev$"]
 
-# CSRF
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.github\.dev$",
+    r"^https://.*\.codespaces\.github\.io$",
+]
+
 CSRF_TRUSTED_ORIGINS = [
     "https://doomscrollr.onrender.com",
     "https://*.github.dev",
+    "https://*.codespaces.github.io",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
