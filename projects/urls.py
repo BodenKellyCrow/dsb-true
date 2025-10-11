@@ -1,8 +1,8 @@
 # projects/urls.py
-from django.urls import path, include
+from django.urls import path
 from rest_framework.routers import DefaultRouter
 from .views import (
-    RegisterView, UserDetailView, ChangePasswordView,
+    RegisterView, UserListView, UserDetailView, ChangePasswordView,
     ProjectListCreateView, TransactionCreateView,
     SocialPostListCreateView, LikeCreateView, CommentCreateView,
     ConversationListCreateView, MessageListCreateView,
@@ -14,6 +14,7 @@ router = DefaultRouter()
 urlpatterns = [
     # Auth & User
     path("auth/register/", RegisterView.as_view(), name="register"),
+    path("users/", UserListView.as_view(), name="user-list"),        # <-- public user listing
     path("users/me/", UserDetailView.as_view(), name="user-detail"),
     path("users/change-password/", ChangePasswordView.as_view(), name="change-password"),
 

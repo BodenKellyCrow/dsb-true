@@ -4,7 +4,6 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import transaction, models
 from rest_framework import generics, permissions, status
-from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -16,8 +15,9 @@ from .models import (
 from .serializers import (
     UserSerializer, ProjectSerializer, TransactionSerializer,
     UserProfileSerializer, SocialPostSerializer, LikeSerializer,
-    CommentSerializer, ConversationSerializer, MessageSerializer,
+    CommentSerializer, ConversationSerializer, MessageSerializer
 )
+
 
 # -------------------------------
 # AUTH / USER MANAGEMENT
@@ -32,7 +32,7 @@ class RegisterView(generics.CreateAPIView):
         response = super().create(request, *args, **kwargs)
         user = User.objects.get(username=response.data["username"])
 
-        # ✅ Ensure UserProfile exists (failsafe)
+        # Ensure UserProfile exists (failsafe)
         UserProfile.objects.get_or_create(user=user)
 
         # Generate tokens
@@ -45,6 +45,16 @@ class RegisterView(generics.CreateAPIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class UserListView(generics.ListAPIView):
+    """
+    Public user list endpoint used by the frontend Explore page.
+    Returns users with profile fields (profile_image, bio) available via serializer.
+    """
+    queryset = User.objects.all().select_related('userprofile')
+    serializer_class = UserSerializer  # returns id, username, email, bio, profile_image
+    permission_classes = [permissions.AllowAny]
 
 
 class UserDetailView(APIView):

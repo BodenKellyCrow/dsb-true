@@ -1,3 +1,4 @@
+# projects/serializers.py
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
@@ -6,6 +7,7 @@ from .models import (
     Conversation, Message
 )
 
+
 # -------------------
 # USER + PROFILE
 # -------------------
@@ -13,26 +15,41 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = ['bio', 'balance', 'profile_image']
-        read_only_fields = ['balance']  # balance should not be edited by users
+        read_only_fields = ['balance']
 
 
 class UserSerializer(serializers.ModelSerializer):
-    # Flattened profile fields
+    # allow frontend to send password on registration
+    password = serializers.CharField(write_only=True, required=False)
+
+    # Flattened profile fields (for easy consumption)
     bio = serializers.CharField(source="profile.bio", required=False, allow_blank=True)
     profile_image = serializers.ImageField(source="profile.profile_image", required=False, allow_null=True)
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'bio', 'profile_image']
+        fields = ['id', 'username', 'email', 'password', 'bio', 'profile_image']
 
     def create(self, validated_data):
         """
-        Ensure every new user automatically has a UserProfile.
-        This helps when registration occurs outside admin or via API.
+        Create a new User and ensure a UserProfile exists.
+        Handle password properly if provided.
         """
+        # Extract password if provided
+        password = validated_data.pop("password", None)
+
+        # Pop nested profile if present (we don't use it directly now)
         profile_data = validated_data.pop("profile", {}) if "profile" in validated_data else {}
+
+        # Create user
         user = User.objects.create(**validated_data)
-        UserProfile.objects.get_or_create(user=user)  # ensures profile exists
+        if password:
+            user.set_password(password)
+            user.save()
+
+        # Ensure profile exists
+        UserProfile.objects.get_or_create(user=user)
+
         return user
 
     def update(self, instance, validated_data):
@@ -41,8 +58,14 @@ class UserSerializer(serializers.ModelSerializer):
         bio = validated_data.pop("bio", None)
         profile_image = validated_data.pop("profile_image", None)
 
-        # Update User base fields
+        # Handle password update if provided
+        password = validated_data.pop("password", None)
+        if password:
+            instance.set_password(password)
+
+        # Update remaining user fields
         instance = super().update(instance, validated_data)
+        instance.save()
 
         # Ensure profile exists
         profile, _ = UserProfile.objects.get_or_create(user=instance)
@@ -67,7 +90,6 @@ class PublicUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'bio', 'profile_image']
-        # 🚫 Removed email for privacy
 
 
 # -------------------
