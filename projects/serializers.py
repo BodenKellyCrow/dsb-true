@@ -6,7 +6,6 @@ from .models import (
     Conversation, Message
 )
 
-
 # -------------------
 # USER + PROFILE
 # -------------------
@@ -25,6 +24,16 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'bio', 'profile_image']
+
+    def create(self, validated_data):
+        """
+        Ensure every new user automatically has a UserProfile.
+        This helps when registration occurs outside admin or via API.
+        """
+        profile_data = validated_data.pop("profile", {}) if "profile" in validated_data else {}
+        user = User.objects.create(**validated_data)
+        UserProfile.objects.get_or_create(user=user)  # ensures profile exists
+        return user
 
     def update(self, instance, validated_data):
         # Extract nested profile data
@@ -65,7 +74,7 @@ class PublicUserSerializer(serializers.ModelSerializer):
 # PROJECTS + FUNDING
 # -------------------
 class ProjectSerializer(serializers.ModelSerializer):
-    owner = PublicUserSerializer(read_only=True)  # return limited info about owner
+    owner = PublicUserSerializer(read_only=True)
     owner_username = serializers.CharField(source='owner.username', read_only=True)
 
     class Meta:
