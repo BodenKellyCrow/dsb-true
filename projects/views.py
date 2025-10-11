@@ -2,26 +2,22 @@
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import transaction, models
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Project, Transaction, UserProfile, SocialPost, Like, Comment, Conversation, Message
-from .serializers import (
-    UserSerializer,
-    ProjectSerializer,
-    TransactionSerializer,
-    UserProfileSerializer,
-    SocialPostSerializer,
-    LikeSerializer,
-    CommentSerializer,
-    ConversationSerializer,
-    MessageSerializer,
+from .models import (
+    Project, Transaction, UserProfile,
+    SocialPost, Like, Comment, Conversation, Message
 )
-
+from .serializers import (
+    UserSerializer, ProjectSerializer, TransactionSerializer,
+    UserProfileSerializer, SocialPostSerializer, LikeSerializer,
+    CommentSerializer, ConversationSerializer, MessageSerializer,
+)
 
 # -------------------------------
 # AUTH / USER MANAGEMENT
@@ -35,6 +31,11 @@ class RegisterView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
         user = User.objects.get(username=response.data["username"])
+
+        # ✅ Ensure UserProfile exists (failsafe)
+        UserProfile.objects.get_or_create(user=user)
+
+        # Generate tokens
         refresh = RefreshToken.for_user(user)
         return Response(
             {
