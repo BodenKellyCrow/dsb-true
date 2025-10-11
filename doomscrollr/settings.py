@@ -3,6 +3,7 @@ from pathlib import Path
 import dj_database_url
 from dotenv import load_dotenv
 from datetime import timedelta
+from django.core.management.utils import get_random_secret_key
 
 # Load environment variables
 load_dotenv()
@@ -10,7 +11,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- Security ---
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-please-change-this")
+SECRET_KEY = os.getenv("SECRET_KEY", get_random_secret_key())
 DEBUG = os.getenv("DEBUG", "True") == "True"
 ALLOWED_HOSTS = ["*"]
 
@@ -26,7 +27,6 @@ INSTALLED_APPS = [
 
     # Third-party
     "rest_framework",
-    "rest_framework.authtoken",
     "corsheaders",
     "dj_rest_auth",
     "django.contrib.sites",
@@ -35,7 +35,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "dj_rest_auth.registration",
 
-    # Local
+    # Local apps
     "projects",
 ]
 
@@ -43,7 +43,7 @@ SITE_ID = 1
 
 # --- Middleware ---
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",  # Must come first
+    "corsheaders.middleware.CorsMiddleware",  # must be first
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -84,7 +84,7 @@ DATABASES = {
     )
 }
 
-# --- Password Validation ---
+# --- Password validation ---
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -92,27 +92,25 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# --- Localization ---
+# --- Internationalization ---
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-# --- Static / Media ---
+# --- Static & Media ---
 STATIC_URL = "/static/"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# --- REST Framework + JWT ---
-REST_USE_JWT = True  # ✅ Enables JWT for dj-rest-auth
-
+# --- REST Framework & JWT ---
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "dj_rest_auth.jwt_auth.JWTCookieAuthentication",  # ✅ Use JWT instead of TokenAuth
-    ),
-    "DEFAULT_PERMISSION_CLASSES": (
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",
-    ),
+    ],
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
@@ -123,22 +121,29 @@ REST_FRAMEWORK = {
     ],
 }
 
+# Ensure dj-rest-auth uses JWT
+REST_USE_JWT = True
+REST_AUTH = {"USE_JWT": True}
+
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
-    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
 }
 
-# --- dj-rest-auth / allauth ---
+# --- allauth / dj-rest-auth ---
+ACCOUNT_LOGIN_METHODS = {"username"}  # replaces deprecated AUTHENTICATION_METHOD
+ACCOUNT_SIGNUP_FIELDS = ["username", "password1", "password2"]  # replaces deprecated REQUIRED fields
 ACCOUNT_EMAIL_VERIFICATION = "none"
-ACCOUNT_AUTHENTICATION_METHOD = "username"
 ACCOUNT_EMAIL_REQUIRED = False
 ACCOUNT_USERNAME_REQUIRED = True
 
-# --- Default ---
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+]
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # --- CORS / CSRF ---
