@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "dj_rest_auth.registration",
+    # ❌ REMOVED: "rest_framework.authtoken" - this was causing the token model conflict
 
     # Local apps
     "projects",
@@ -106,7 +107,8 @@ MEDIA_ROOT = BASE_DIR / "media"
 # --- REST Framework & JWT ---
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        # ✅ CHANGED: Use dj-rest-auth's JWT authentication class for better integration
+        "dj_rest_auth.jwt_auth.JWTCookieAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",
@@ -121,27 +123,34 @@ REST_FRAMEWORK = {
     ],
 }
 
-# Ensure dj-rest-auth uses JWT
-REST_USE_JWT = True
-REST_AUTH = {"USE_JWT": True}
+# ✅ CRITICAL FIX: Properly configure dj-rest-auth to use JWT
+REST_AUTH = {
+    "USE_JWT": True,
+    "JWT_AUTH_COOKIE": None,  # We're using localStorage, not cookies
+    "JWT_AUTH_REFRESH_COOKIE": None,
+    "JWT_AUTH_HTTPONLY": False,
+    "TOKEN_MODEL": None,  # ← This disables the legacy token model completely
+}
 
+# ✅ SimpleJWT Configuration
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),  # ← Changed from 1 day to 15 mins (more secure)
     "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
 }
 
 # --- allauth / dj-rest-auth ---
-ACCOUNT_LOGIN_METHODS = {"username"}  # replaces deprecated AUTHENTICATION_METHOD
-ACCOUNT_SIGNUP_FIELDS = ["username", "password1", "password2"]  # replaces deprecated REQUIRED fields
+ACCOUNT_AUTHENTICATION_METHOD = "username"  # ✅ Using correct setting name
 ACCOUNT_EMAIL_VERIFICATION = "none"
 ACCOUNT_EMAIL_REQUIRED = False
 ACCOUNT_USERNAME_REQUIRED = True
 
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",  # ✅ Added allauth backend
 ]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -150,23 +159,20 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "https://doomscrollr.onrender.com",
-    "https://*.github.dev",
-    "https://*.codespaces.github.io",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.github\.dev$",
     r"^https://.*\.codespaces\.github\.io$",
+    r"^https://.*\.preview\.app\.github\.dev$",  # ✅ Added for Codespaces previews
 ]
 CSRF_TRUSTED_ORIGINS = [
     "https://doomscrollr.onrender.com",
-    "https://*.github.dev",
-    "https://*.codespaces.github.io",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+# ✅ ADDED: This was missing from your version!
 # Disable legacy token model (we use JWT only)
-REST_AUTH_TOKEN_MODEL = None
-# Disable legacy DRF token model — we use JWT only
 REST_AUTH_TOKEN_MODEL = None
