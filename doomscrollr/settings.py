@@ -168,3 +168,5 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 # Disable legacy token model (we use JWT only)
 REST_AUTH_TOKEN_MODEL = None
+# Disable legacy DRF token model — we use JWT only
+REST_AUTH_TOKEN_MODEL = None
