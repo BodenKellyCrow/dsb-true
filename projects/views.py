@@ -7,7 +7,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-
+# ⭐️ NOTE: Assuming you have a UserProfile model with a followers M2M field
 from .models import (
     Project, Transaction, UserProfile,
     SocialPost, Like, Comment, Conversation, Message
@@ -22,6 +22,8 @@ from .serializers import (
 # -------------------------------
 # AUTH / USER MANAGEMENT
 # -------------------------------
+
+# ... (RegisterView, UserListView, UserDetailView, ChangePasswordView remain the same) ...
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -123,8 +125,53 @@ class ChangePasswordView(APIView):
         return Response({"success": "Password updated successfully."})
 
 
+# ⭐️ NEW VIEW: Follow/Unfollow Toggle
+class FollowToggleView(APIView):
+    """
+    Follow or unfollow a user by ID.
+    Endpoint: /users/<pk>/follow_toggle/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            # The user to be followed/unfollowed
+            target_user = User.objects.get(pk=pk)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # You cannot follow yourself
+        if target_user == request.user:
+            return Response({"error": "You cannot follow yourself."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get the current user's profile
+        follower_profile = request.user.userprofile
+        target_profile = target_user.userprofile
+
+        # ⭐️ ASSUMPTION: UserProfile has a 'followers' M2M field
+        # We check if the target's profile is being followed by the current user
+        is_following = target_profile.followers.filter(id=request.user.id).exists()
+
+        if is_following:
+            # Unfollow logic (Remove the current user from the target's followers list)
+            target_profile.followers.remove(request.user)
+            message = f"Successfully unfollowed @{target_user.username}"
+            action = "unfollowed"
+        else:
+            # Follow logic (Add the current user to the target's followers list)
+            target_profile.followers.add(request.user)
+            message = f"Successfully followed @{target_user.username}"
+            action = "followed"
+
+        # Return updated status and message
+        return Response(
+            {"message": message, "is_following": not is_following, "action": action}, 
+            status=status.HTTP_200_OK
+        )
+
+
 # -------------------------------
-# PROJECTS + TRANSACTIONS
+# PROJECTS + TRANSACTIONS (Remainder of file remains the same)
 # -------------------------------
 
 class ProjectListCreateView(generics.ListCreateAPIView):

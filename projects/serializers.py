@@ -22,13 +22,27 @@ class UserSerializer(serializers.ModelSerializer):
     # allow frontend to send password on registration
     password = serializers.CharField(write_only=True, required=False)
 
-    # Flattened profile fields (for easy consumption)
-    bio = serializers.CharField(source="profile.bio", required=False, allow_blank=True)
-    profile_image = serializers.ImageField(source="profile.profile_image", required=False, allow_null=True)
+    # Flattened profile fields (for easy consumption) - Source corrected to 'userprofile'
+    bio = serializers.CharField(source="userprofile.bio", required=False, allow_blank=True)
+    profile_image = serializers.ImageField(source="userprofile.profile_image", required=False, allow_null=True)
+
+    # Add follow-related counts
+    follower_count = serializers.SerializerMethodField()
+    following_count = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'password', 'bio', 'profile_image']
+        fields = ['id', 'username', 'email', 'password', 'bio', 'profile_image', 'follower_count', 'following_count']
+
+    # --- Helper Methods for Counts ---
+    def get_follower_count(self, obj):
+        # Counts how many users follow this user (via UserProfile.followers)
+        return obj.userprofile.followers.count()
+
+    def get_following_count(self, obj):
+        # Counts how many users this user is following (via User.following related_name)
+        return obj.following.count()
+    # ---------------------------------
 
     def create(self, validated_data):
         """
@@ -38,8 +52,8 @@ class UserSerializer(serializers.ModelSerializer):
         # Extract password if provided
         password = validated_data.pop("password", None)
 
-        # Pop nested profile if present (we don't use it directly now)
-        profile_data = validated_data.pop("profile", {}) if "profile" in validated_data else {}
+        # Pop nested profile data (Source corrected to 'userprofile' for consistency)
+        profile_data = validated_data.pop("userprofile", {}) if "userprofile" in validated_data else {}
 
         # Create user
         user = User.objects.create(**validated_data)
@@ -48,13 +62,14 @@ class UserSerializer(serializers.ModelSerializer):
             user.save()
 
         # Ensure profile exists
+        # NOTE: We don't populate bio/image on create here, assuming it's done via update or later
         UserProfile.objects.get_or_create(user=user)
 
         return user
 
     def update(self, instance, validated_data):
-        # Extract nested profile data
-        profile_data = validated_data.pop("profile", {})
+        # Extract nested profile data (Source corrected to 'userprofile')
+        profile_data = validated_data.pop("userprofile", {})
         bio = validated_data.pop("bio", None)
         profile_image = validated_data.pop("profile_image", None)
 
@@ -84,12 +99,39 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class PublicUserSerializer(serializers.ModelSerializer):
-    bio = serializers.CharField(source="profile.bio", read_only=True)
-    profile_image = serializers.ImageField(source="profile.profile_image", read_only=True)
+    # Flattened profile fields (Source corrected to 'userprofile')
+    bio = serializers.CharField(source="userprofile.bio", read_only=True)
+    profile_image = serializers.ImageField(source="userprofile.profile_image", read_only=True)
+
+    # Add follow-related fields
+    is_followed_by_current_user = serializers.SerializerMethodField()
+    follower_count = serializers.SerializerMethodField()
+    following_count = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'bio', 'profile_image']
+        fields = ['id', 'username', 'bio', 'profile_image', 
+                  'is_followed_by_current_user', 'follower_count', 'following_count']
+
+    # --- Helper Methods for Follower Logic ---
+    def get_is_followed_by_current_user(self, obj):
+        """Checks if the request.user is following the user being viewed (obj)."""
+        request = self.context.get('request', None)
+
+        if request and request.user.is_authenticated:
+            current_user = request.user
+            # Check if the user being viewed (obj) has the current_user in its followers list
+            return obj.userprofile.followers.filter(id=current_user.id).exists()
+        return False
+    
+    def get_follower_count(self, obj):
+        # Counts how many users follow this user
+        return obj.userprofile.followers.count()
+
+    def get_following_count(self, obj):
+        # Counts how many users this user is following
+        return obj.following.count()
+    # -----------------------------------------
 
 
 # -------------------

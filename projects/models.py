@@ -43,7 +43,20 @@ class UserProfile(models.Model):
     bio = models.TextField(blank=True, null=True)
     balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     profile_image = models.ImageField(upload_to='profile_images/', null=True, blank=True)
-    AUTH_USER_MODEL = "projects.UserProfile"
+    
+    # ⭐️ NEW: Many-to-Many relationship for followers
+    # The 'related_name' 'following' allows user.following.all() to see who the user follows.
+    # The M2M field is on the User model via UserProfile, so we reference the User model.
+    followers = models.ManyToManyField(
+        User, 
+        related_name='following', 
+        blank=True
+    )
+    
+    # NOTE: The AUTH_USER_MODEL line you had was incorrect for this model,
+    # as Django expects a string reference in settings.py. I've removed it
+    # to avoid confusion, assuming your settings are correct.
+    # AUTH_USER_MODEL = "projects.UserProfile" # Removed line
 
     def __str__(self):
         return self.user.username
