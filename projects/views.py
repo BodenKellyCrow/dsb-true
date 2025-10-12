@@ -53,11 +53,15 @@ class UserListView(generics.ListAPIView):
     Returns users with profile fields (profile_image, bio) available via serializer.
     """
     queryset = User.objects.all().select_related('userprofile')
-    serializer_class = UserSerializer  # returns id, username, email, bio, profile_image
+    serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
 
 
 class UserDetailView(APIView):
+    """
+    Get or update the currently authenticated user's details.
+    Used for /auth/user/ endpoint.
+    """
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
@@ -79,6 +83,17 @@ class UserDetailView(APIView):
             user.save()
 
         return Response(UserSerializer(user).data)
+
+
+class UserDetailByIdView(generics.RetrieveAPIView):
+    """
+    Get a single user's details by ID (for viewing other users' profiles).
+    Used for /users/<id>/ endpoint.
+    """
+    queryset = User.objects.all().select_related('userprofile')
+    serializer_class = UserSerializer
+    permission_classes = [permissions.AllowAny]
+    lookup_field = 'pk'
 
 
 class ChangePasswordView(APIView):
@@ -113,15 +128,39 @@ class ChangePasswordView(APIView):
 # -------------------------------
 
 class ProjectListCreateView(generics.ListCreateAPIView):
-    queryset = Project.objects.all().order_by("-created_at")
+    """
+    List all projects or create a new project.
+    Supports filtering by owner: /projects/?owner=<user_id>
+    """
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        queryset = Project.objects.all().select_related('owner__userprofile').order_by("-created_at")
+        owner_id = self.request.query_params.get('owner', None)
+        if owner_id:
+            queryset = queryset.filter(owner_id=owner_id)
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 
 
+class ProjectDetailView(generics.RetrieveAPIView):
+    """
+    Get a single project's details by ID.
+    Used for /projects/<id>/ endpoint.
+    """
+    queryset = Project.objects.all().select_related('owner__userprofile')
+    serializer_class = ProjectSerializer
+    permission_classes = [permissions.AllowAny]
+
+
 class TransactionCreateView(generics.CreateAPIView):
+    """
+    Create a new transaction (fund a project).
+    Requires: receiver (user_id), project (project_id), amount
+    """
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -155,15 +194,29 @@ class TransactionCreateView(generics.CreateAPIView):
 # -------------------------------
 
 class SocialPostListCreateView(generics.ListCreateAPIView):
-    queryset = SocialPost.objects.all().order_by("-created_at")
+    """
+    List all social posts or create a new post.
+    Supports filtering by author: /social-posts/?author=<user_id>
+    """
     serializer_class = SocialPostSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        queryset = SocialPost.objects.all().select_related('author__userprofile').order_by("-created_at")
+        author_id = self.request.query_params.get('author', None)
+        if author_id:
+            queryset = queryset.filter(author_id=author_id)
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
 
 class LikeCreateView(generics.CreateAPIView):
+    """
+    Create a like on a post.
+    Requires: post (post_id)
+    """
     serializer_class = LikeSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -172,6 +225,10 @@ class LikeCreateView(generics.CreateAPIView):
 
 
 class CommentCreateView(generics.CreateAPIView):
+    """
+    Create a comment on a post.
+    Requires: post (post_id), content
+    """
     serializer_class = CommentSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -184,6 +241,9 @@ class CommentCreateView(generics.CreateAPIView):
 # -------------------------------
 
 class ConversationListCreateView(generics.ListCreateAPIView):
+    """
+    List all conversations for the authenticated user or create a new conversation.
+    """
     serializer_class = ConversationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -197,6 +257,9 @@ class ConversationListCreateView(generics.ListCreateAPIView):
 
 
 class MessageListCreateView(generics.ListCreateAPIView):
+    """
+    List all messages in a conversation or send a new message.
+    """
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
