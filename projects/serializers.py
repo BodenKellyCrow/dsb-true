@@ -19,14 +19,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    # allow frontend to send password on registration
     password = serializers.CharField(write_only=True, required=False)
-
-    # Flattened profile fields (for easy consumption) - Source corrected to 'userprofile'
-    bio = serializers.CharField(source="userprofile.bio", required=False, allow_blank=True)
-    profile_image = serializers.ImageField(source="userprofile.profile_image", required=False, allow_null=True)
-
-    # Add follow-related counts
+    
+    # ✅ CRITICAL FIX: Use SerializerMethodField to safely handle missing profiles
+    bio = serializers.SerializerMethodField()
+    profile_image = serializers.SerializerMethodField()
     follower_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
 
@@ -34,61 +31,62 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'password', 'bio', 'profile_image', 'follower_count', 'following_count']
 
-    # --- Helper Methods for Counts ---
+    # ✅ Safe getter methods that handle missing profiles
+    def get_bio(self, obj):
+        """Safely get bio, return empty string if no profile"""
+        return getattr(obj.userprofile, 'bio', '') if hasattr(obj, 'userprofile') else ''
+
+    def get_profile_image(self, obj):
+        """Safely get profile image, return None if no profile"""
+        if hasattr(obj, 'userprofile') and obj.userprofile.profile_image:
+            return obj.userprofile.profile_image.url
+        return None
+
     def get_follower_count(self, obj):
-        # Counts how many users follow this user (via UserProfile.followers)
-        return obj.userprofile.followers.count()
+        """Safely get follower count"""
+        if hasattr(obj, 'userprofile'):
+            return obj.userprofile.followers.count()
+        return 0
 
     def get_following_count(self, obj):
-        # Counts how many users this user is following (via User.following related_name)
-        return obj.following.count()
-    # ---------------------------------
+        """Safely get following count"""
+        return obj.following.count() if hasattr(obj, 'following') else 0
 
     def create(self, validated_data):
-        """
-        Create a new User and ensure a UserProfile exists.
-        Handle password properly if provided.
-        """
-        # Extract password if provided
+        """Create user and ensure profile exists"""
         password = validated_data.pop("password", None)
-
-        # Pop nested profile data (Source corrected to 'userprofile' for consistency)
-        profile_data = validated_data.pop("userprofile", {}) if "userprofile" in validated_data else {}
-
+        
         # Create user
         user = User.objects.create(**validated_data)
         if password:
             user.set_password(password)
             user.save()
 
-        # Ensure profile exists
-        # NOTE: We don't populate bio/image on create here, assuming it's done via update or later
+        # ✅ ALWAYS create profile
         UserProfile.objects.get_or_create(user=user)
 
         return user
 
     def update(self, instance, validated_data):
-        # Extract nested profile data (Source corrected to 'userprofile')
-        profile_data = validated_data.pop("userprofile", {})
-        bio = validated_data.pop("bio", None)
-        profile_image = validated_data.pop("profile_image", None)
-
-        # Handle password update if provided
+        """Update user and profile"""
+        # Handle password
         password = validated_data.pop("password", None)
         if password:
             instance.set_password(password)
 
-        # Update remaining user fields
-        instance = super().update(instance, validated_data)
+        # Extract profile-related data from request
+        bio = self.initial_data.get('bio', None)
+        profile_image = self.initial_data.get('profile_image', None)
+
+        # Update user fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
         instance.save()
 
-        # Ensure profile exists
-        profile, _ = UserProfile.objects.get_or_create(user=instance)
+        # ✅ Ensure profile exists
+        profile, created = UserProfile.objects.get_or_create(user=instance)
 
         # Update profile fields
-        if profile_data:
-            for attr, value in profile_data.items():
-                setattr(profile, attr, value)
         if bio is not None:
             profile.bio = bio
         if profile_image is not None:
@@ -99,11 +97,9 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class PublicUserSerializer(serializers.ModelSerializer):
-    # Flattened profile fields (Source corrected to 'userprofile')
-    bio = serializers.CharField(source="userprofile.bio", read_only=True)
-    profile_image = serializers.ImageField(source="userprofile.profile_image", read_only=True)
-
-    # Add follow-related fields
+    # ✅ Use SerializerMethodField for safe access
+    bio = serializers.SerializerMethodField()
+    profile_image = serializers.SerializerMethodField()
     is_followed_by_current_user = serializers.SerializerMethodField()
     follower_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
@@ -113,25 +109,26 @@ class PublicUserSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'bio', 'profile_image', 
                   'is_followed_by_current_user', 'follower_count', 'following_count']
 
-    # --- Helper Methods for Follower Logic ---
-    def get_is_followed_by_current_user(self, obj):
-        """Checks if the request.user is following the user being viewed (obj)."""
-        request = self.context.get('request', None)
+    def get_bio(self, obj):
+        return getattr(obj.userprofile, 'bio', '') if hasattr(obj, 'userprofile') else ''
 
+    def get_profile_image(self, obj):
+        if hasattr(obj, 'userprofile') and obj.userprofile.profile_image:
+            return obj.userprofile.profile_image.url
+        return None
+
+    def get_is_followed_by_current_user(self, obj):
+        request = self.context.get('request', None)
         if request and request.user.is_authenticated:
-            current_user = request.user
-            # Check if the user being viewed (obj) has the current_user in its followers list
-            return obj.userprofile.followers.filter(id=current_user.id).exists()
+            if hasattr(obj, 'userprofile'):
+                return obj.userprofile.followers.filter(id=request.user.id).exists()
         return False
     
     def get_follower_count(self, obj):
-        # Counts how many users follow this user
-        return obj.userprofile.followers.count()
+        return obj.userprofile.followers.count() if hasattr(obj, 'userprofile') else 0
 
     def get_following_count(self, obj):
-        # Counts how many users this user is following
-        return obj.following.count()
-    # -----------------------------------------
+        return obj.following.count() if hasattr(obj, 'following') else 0
 
 
 # -------------------
@@ -146,7 +143,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'image',
             'funding_goal', 'current_funding',
-            'owner', 'owner_username'
+            'owner', 'owner_username', 'created_at'
         ]
 
 

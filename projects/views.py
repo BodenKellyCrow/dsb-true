@@ -49,15 +49,19 @@ class RegisterView(generics.CreateAPIView):
         )
 
 
+# In projects/views.py, update UserListView:
+
 class UserListView(generics.ListAPIView):
     """
     Public user list endpoint used by the frontend Explore page.
     Returns users with profile fields (profile_image, bio) available via serializer.
     """
-    queryset = User.objects.all().select_related('userprofile')
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
-
+    
+    def get_queryset(self):
+        # ✅ Use prefetch_related for better performance and ensure profiles exist
+        return User.objects.all().prefetch_related('userprofile', 'following')
 
 class UserDetailView(APIView):
     """
