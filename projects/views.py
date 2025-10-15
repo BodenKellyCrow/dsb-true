@@ -269,7 +269,10 @@ class MessageListCreateView(generics.ListCreateAPIView):
 # projects/views.py (Ensure this class is present and correctly indented)
 # ...
 
-# ⭐️ NEW VIEW: Follow/Unfollow Toggle
+# projects/views.py
+
+# ... (inside the class definition) ...
+
 class FollowToggleView(APIView):
     """
     Follow or unfollow a user by ID.
@@ -278,6 +281,40 @@ class FollowToggleView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, pk):
-        # ... (rest of the logic) ...
-        # ... (Your logic from before goes here) ...
-        pass
+        try:
+            # 1. Retrieve the user being targeted (to follow/unfollow)
+            target_user = User.objects.select_related('userprofile').get(pk=pk)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. Prevent self-following
+        if target_user == request.user:
+            return Response({"error": "You cannot follow yourself."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 3. Get the target user's profile to access the 'followers' M2M field
+        target_profile = target_user.userprofile
+
+        # 4. Check the current following status
+        # We check if the current user (request.user) is in the target user's followers list.
+        is_following = target_profile.followers.filter(id=request.user.id).exists()
+
+        if is_following:
+            # 5. UNFOLLOW action: Remove the current user from the target's followers list
+            target_profile.followers.remove(request.user)
+            message = f"Successfully unfollowed @{target_user.username}"
+            action = "unfollowed"
+        else:
+            # 5. FOLLOW action: Add the current user to the target's followers list
+            target_profile.followers.add(request.user)
+            message = f"Successfully followed @{target_user.username}"
+            action = "followed"
+
+        # 6. Return the updated status and a success message
+        return Response(
+            {
+                "message": message, 
+                "is_following": not is_following, # The new status
+                "action": action
+            }, 
+            status=status.HTTP_200_OK
+        )
