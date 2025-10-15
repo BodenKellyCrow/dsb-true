@@ -265,3 +265,19 @@ class MessageListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         conversation_id = self.kwargs["conversation_id"]
         serializer.save(sender=self.request.user, conversation_id=conversation_id)
+
+# projects/views.py (Ensure this class is present and correctly indented)
+# ...
+
+# ⭐️ NEW VIEW: Follow/Unfollow Toggle
+class FollowToggleView(APIView):
+    """
+    Follow or unfollow a user by ID.
+    Endpoint: /users/<pk>/follow_toggle/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        # ... (rest of the logic) ...
+        # ... (Your logic from before goes here) ...
+        pass
