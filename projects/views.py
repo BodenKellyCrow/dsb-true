@@ -7,7 +7,11 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-# ⭐️ NOTE: Assuming you have a UserProfile model with a followers M2M field
+import logging
+
+# ✅ Add logging
+logger = logging.getLogger(__name__)
+
 from .models import (
     Project, Transaction, UserProfile,
     SocialPost, Like, Comment, Conversation, Message
@@ -23,166 +27,128 @@ from .serializers import (
 # AUTH / USER MANAGEMENT
 # -------------------------------
 
-# ... (RegisterView, UserListView, UserDetailView, ChangePasswordView remain the same) ...
-
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
 
     def create(self, request, *args, **kwargs):
-        response = super().create(request, *args, **kwargs)
-        user = User.objects.get(username=response.data["username"])
+        try:
+            response = super().create(request, *args, **kwargs)
+            user = User.objects.get(username=response.data["username"])
 
-        # Ensure UserProfile exists (failsafe)
-        UserProfile.objects.get_or_create(user=user)
+            # Ensure UserProfile exists
+            UserProfile.objects.get_or_create(user=user)
 
-        # Generate tokens
-        refresh = RefreshToken.for_user(user)
-        return Response(
-            {
-                "user": response.data,
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            },
-            status=status.HTTP_201_CREATED,
-        )
+            # Generate tokens
+            refresh = RefreshToken.for_user(user)
+            return Response(
+                {
+                    "user": response.data,
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception as e:
+            logger.error(f"❌ Registration error: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-# In projects/views.py, update UserListView:
 
 class UserListView(generics.ListAPIView):
     """
     Public user list endpoint used by the frontend Explore page.
-    Returns users with profile fields (profile_image, bio) available via serializer.
     """
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
-        # ✅ Use prefetch_related for better performance and ensure profiles exist
-        return User.objects.all().prefetch_related('userprofile', 'following')
+        return User.objects.all().select_related('userprofile')
+
+    def list(self, request, *args, **kwargs):
+        try:
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"❌ UserListView error: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class UserDetailView(APIView):
-    """
-    Get or update the currently authenticated user's details.
-    Used for /auth/user/ endpoint.
-    """
+    """Get or update the currently authenticated user's details."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        serializer = UserSerializer(request.user)
-        return Response(serializer.data)
+        try:
+            serializer = UserSerializer(request.user)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"❌ UserDetailView GET error: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def put(self, request):
-        """Update username only."""
-        user = request.user
-        new_username = request.data.get("username")
-
-        if new_username:
-            if User.objects.filter(username=new_username).exclude(id=user.id).exists():
-                return Response(
-                    {"error": "Username already taken."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            user.username = new_username
-            user.save()
-
-        return Response(UserSerializer(user).data)
+    def patch(self, request):
+        """Partial update of user profile"""
+        try:
+            serializer = UserSerializer(request.user, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"❌ UserDetailView PATCH error: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class UserDetailByIdView(generics.RetrieveAPIView):
-    """
-    Get a single user's details by ID (for viewing other users' profiles).
-    Used for /users/<id>/ endpoint.
-    """
+    """Get a single user's details by ID"""
     queryset = User.objects.all().select_related('userprofile')
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
     lookup_field = 'pk'
+
+    def retrieve(self, request, *args, **kwargs):
+        try:
+            return super().retrieve(request, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"❌ UserDetailByIdView error: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ChangePasswordView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def put(self, request):
-        user = request.user
-        old_password = request.data.get("old_password")
-        new_password = request.data.get("new_password")
-
-        if not user.check_password(old_password):
-            return Response(
-                {"error": "Old password is incorrect."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         try:
-            validate_password(new_password, user)
-        except ValidationError as e:
-            return Response(
-                {"error": list(e.messages)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            user = request.user
+            old_password = request.data.get("old_password")
+            new_password = request.data.get("new_password")
 
-        user.set_password(new_password)
-        user.save()
-        return Response({"success": "Password updated successfully."})
+            if not user.check_password(old_password):
+                return Response(
+                    {"error": "Old password is incorrect."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
+            try:
+                validate_password(new_password, user)
+            except ValidationError as e:
+                return Response(
+                    {"error": list(e.messages)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-# ⭐️ NEW VIEW: Follow/Unfollow Toggle
-class FollowToggleView(APIView):
-    """
-    Follow or unfollow a user by ID.
-    Endpoint: /users/<pk>/follow_toggle/
-    """
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, pk):
-        try:
-            # The user to be followed/unfollowed
-            target_user = User.objects.get(pk=pk)
-        except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        # You cannot follow yourself
-        if target_user == request.user:
-            return Response({"error": "You cannot follow yourself."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Get the current user's profile
-        follower_profile = request.user.userprofile
-        target_profile = target_user.userprofile
-
-        # ⭐️ ASSUMPTION: UserProfile has a 'followers' M2M field
-        # We check if the target's profile is being followed by the current user
-        is_following = target_profile.followers.filter(id=request.user.id).exists()
-
-        if is_following:
-            # Unfollow logic (Remove the current user from the target's followers list)
-            target_profile.followers.remove(request.user)
-            message = f"Successfully unfollowed @{target_user.username}"
-            action = "unfollowed"
-        else:
-            # Follow logic (Add the current user to the target's followers list)
-            target_profile.followers.add(request.user)
-            message = f"Successfully followed @{target_user.username}"
-            action = "followed"
-
-        # Return updated status and message
-        return Response(
-            {"message": message, "is_following": not is_following, "action": action}, 
-            status=status.HTTP_200_OK
-        )
+            user.set_password(new_password)
+            user.save()
+            return Response({"success": "Password updated successfully."})
+        except Exception as e:
+            logger.error(f"❌ ChangePasswordView error: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # -------------------------------
-# PROJECTS + TRANSACTIONS (Remainder of file remains the same)
+# PROJECTS + TRANSACTIONS
 # -------------------------------
 
 class ProjectListCreateView(generics.ListCreateAPIView):
-    """
-    List all projects or create a new project.
-    Supports filtering by owner: /projects/?owner=<user_id>
-    """
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -198,20 +164,12 @@ class ProjectListCreateView(generics.ListCreateAPIView):
 
 
 class ProjectDetailView(generics.RetrieveAPIView):
-    """
-    Get a single project's details by ID.
-    Used for /projects/<id>/ endpoint.
-    """
     queryset = Project.objects.all().select_related('owner__userprofile')
     serializer_class = ProjectSerializer
     permission_classes = [permissions.AllowAny]
 
 
 class TransactionCreateView(generics.CreateAPIView):
-    """
-    Create a new transaction (fund a project).
-    Requires: receiver (user_id), project (project_id), amount
-    """
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -245,10 +203,6 @@ class TransactionCreateView(generics.CreateAPIView):
 # -------------------------------
 
 class SocialPostListCreateView(generics.ListCreateAPIView):
-    """
-    List all social posts or create a new post.
-    Supports filtering by author: /social-posts/?author=<user_id>
-    """
     serializer_class = SocialPostSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -260,14 +214,14 @@ class SocialPostListCreateView(generics.ListCreateAPIView):
         return queryset
 
     def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
+        try:
+            serializer.save(author=self.request.user)
+        except Exception as e:
+            logger.error(f"❌ SocialPost create error: {str(e)}")
+            raise
 
 
 class LikeCreateView(generics.CreateAPIView):
-    """
-    Create a like on a post.
-    Requires: post (post_id)
-    """
     serializer_class = LikeSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -276,10 +230,6 @@ class LikeCreateView(generics.CreateAPIView):
 
 
 class CommentCreateView(generics.CreateAPIView):
-    """
-    Create a comment on a post.
-    Requires: post (post_id), content
-    """
     serializer_class = CommentSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -292,9 +242,6 @@ class CommentCreateView(generics.CreateAPIView):
 # -------------------------------
 
 class ConversationListCreateView(generics.ListCreateAPIView):
-    """
-    List all conversations for the authenticated user or create a new conversation.
-    """
     serializer_class = ConversationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -308,9 +255,6 @@ class ConversationListCreateView(generics.ListCreateAPIView):
 
 
 class MessageListCreateView(generics.ListCreateAPIView):
-    """
-    List all messages in a conversation or send a new message.
-    """
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
 

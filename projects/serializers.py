@@ -21,36 +21,29 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False)
     
-    # ✅ CRITICAL FIX: Use SerializerMethodField to safely handle missing profiles
+    # ✅ Use SerializerMethodField to safely handle missing profiles
     bio = serializers.SerializerMethodField()
     profile_image = serializers.SerializerMethodField()
-    follower_count = serializers.SerializerMethodField()
-    following_count = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'password', 'bio', 'profile_image', 'follower_count', 'following_count']
+        fields = ['id', 'username', 'email', 'password', 'bio', 'profile_image']
 
-    # ✅ Safe getter methods that handle missing profiles
     def get_bio(self, obj):
         """Safely get bio, return empty string if no profile"""
-        return getattr(obj.userprofile, 'bio', '') if hasattr(obj, 'userprofile') else ''
+        try:
+            return obj.userprofile.bio or ''
+        except (AttributeError, UserProfile.DoesNotExist):
+            return ''
 
     def get_profile_image(self, obj):
-        """Safely get profile image, return None if no profile"""
-        if hasattr(obj, 'userprofile') and obj.userprofile.profile_image:
-            return obj.userprofile.profile_image.url
+        """Safely get profile image URL, return None if no profile"""
+        try:
+            if obj.userprofile.profile_image:
+                return obj.userprofile.profile_image.url
+        except (AttributeError, UserProfile.DoesNotExist):
+            pass
         return None
-
-    def get_follower_count(self, obj):
-        """Safely get follower count"""
-        if hasattr(obj, 'userprofile'):
-            return obj.userprofile.followers.count()
-        return 0
-
-    def get_following_count(self, obj):
-        """Safely get following count"""
-        return obj.following.count() if hasattr(obj, 'following') else 0
 
     def create(self, validated_data):
         """Create user and ensure profile exists"""
@@ -64,7 +57,6 @@ class UserSerializer(serializers.ModelSerializer):
 
         # ✅ ALWAYS create profile
         UserProfile.objects.get_or_create(user=user)
-
         return user
 
     def update(self, instance, validated_data):
@@ -74,61 +66,45 @@ class UserSerializer(serializers.ModelSerializer):
         if password:
             instance.set_password(password)
 
-        # Extract profile-related data from request
-        bio = self.initial_data.get('bio', None)
-        profile_image = self.initial_data.get('profile_image', None)
-
         # Update user fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        # ✅ Ensure profile exists
-        profile, created = UserProfile.objects.get_or_create(user=instance)
-
-        # Update profile fields
-        if bio is not None:
-            profile.bio = bio
-        if profile_image is not None:
-            profile.profile_image = profile_image
+        # ✅ Ensure profile exists and update it
+        profile, _ = UserProfile.objects.get_or_create(user=instance)
+        
+        # Check for bio and profile_image in initial_data (from form)
+        if 'bio' in self.initial_data:
+            profile.bio = self.initial_data['bio']
+        if 'profile_image' in self.initial_data and self.initial_data['profile_image']:
+            profile.profile_image = self.initial_data['profile_image']
         profile.save()
 
         return instance
 
 
 class PublicUserSerializer(serializers.ModelSerializer):
-    # ✅ Use SerializerMethodField for safe access
     bio = serializers.SerializerMethodField()
     profile_image = serializers.SerializerMethodField()
-    is_followed_by_current_user = serializers.SerializerMethodField()
-    follower_count = serializers.SerializerMethodField()
-    following_count = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'bio', 'profile_image', 
-                  'is_followed_by_current_user', 'follower_count', 'following_count']
+        fields = ['id', 'username', 'bio', 'profile_image']
 
     def get_bio(self, obj):
-        return getattr(obj.userprofile, 'bio', '') if hasattr(obj, 'userprofile') else ''
+        try:
+            return obj.userprofile.bio or ''
+        except (AttributeError, UserProfile.DoesNotExist):
+            return ''
 
     def get_profile_image(self, obj):
-        if hasattr(obj, 'userprofile') and obj.userprofile.profile_image:
-            return obj.userprofile.profile_image.url
+        try:
+            if obj.userprofile.profile_image:
+                return obj.userprofile.profile_image.url
+        except (AttributeError, UserProfile.DoesNotExist):
+            pass
         return None
-
-    def get_is_followed_by_current_user(self, obj):
-        request = self.context.get('request', None)
-        if request and request.user.is_authenticated:
-            if hasattr(obj, 'userprofile'):
-                return obj.userprofile.followers.filter(id=request.user.id).exists()
-        return False
-    
-    def get_follower_count(self, obj):
-        return obj.userprofile.followers.count() if hasattr(obj, 'userprofile') else 0
-
-    def get_following_count(self, obj):
-        return obj.following.count() if hasattr(obj, 'following') else 0
 
 
 # -------------------
