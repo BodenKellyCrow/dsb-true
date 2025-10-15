@@ -14,11 +14,11 @@ logger = logging.getLogger(__name__)
 
 from .models import (
     Project, Transaction, UserProfile,
-    SocialPost, Like, Comment, Conversation, Message
+    SocialPost, Conversation, Message
 )
 from .serializers import (
     UserSerializer, ProjectSerializer, TransactionSerializer,
-    UserProfileSerializer, SocialPostSerializer, LikeSerializer,
+    SocialPostSerializer, LikeSerializer,
     CommentSerializer, ConversationSerializer, MessageSerializer, PublicUserSerializer
 )
 
