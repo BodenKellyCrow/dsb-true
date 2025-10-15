@@ -99,8 +99,14 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
+# doomscrollr/settings.py (at the bottom of the file)
+# ...
+
 # --- Static & Media ---
 STATIC_URL = "/static/"
+# ✅ FIX: Explicitly define STATIC_ROOT for collecting static files in production
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 

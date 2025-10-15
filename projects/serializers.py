@@ -84,13 +84,21 @@ class UserSerializer(serializers.ModelSerializer):
         return instance
 
 
+# projects/serializers.py
+
+# ... (around line 98)
+
 class PublicUserSerializer(serializers.ModelSerializer):
     bio = serializers.SerializerMethodField()
     profile_image = serializers.SerializerMethodField()
+    
+    # ✅ FIX 1: Add is_following field
+    is_following = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'bio', 'profile_image']
+        # ✅ FIX 2: Add is_following to fields
+        fields = ['id', 'username', 'bio', 'profile_image', 'is_following']
 
     def get_bio(self, obj):
         try:
@@ -106,6 +114,18 @@ class PublicUserSerializer(serializers.ModelSerializer):
             pass
         return None
 
+    # ✅ FIX 3: New method to check if the requesting user is following 'obj'
+    def get_is_following(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            # Check if the currently viewed user (obj) has the requesting user (request.user) in their followers list.
+            try:
+                # Assuming UserProfile has a 'followers' Many-to-Many field pointing to User
+                return obj.userprofile.followers.filter(id=request.user.id).exists()
+            except (AttributeError, UserProfile.DoesNotExist):
+                # Should not happen with the previous fix, but safe check
+                pass
+        return False
 
 # -------------------
 # PROJECTS + FUNDING

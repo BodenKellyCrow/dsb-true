@@ -98,10 +98,16 @@ class UserDetailView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# projects/views.py
+
+# ... (around line 105)
+
 class UserDetailByIdView(generics.RetrieveAPIView):
     """Get a single user's details by ID"""
     queryset = User.objects.all().select_related('userprofile')
-    serializer_class = UserSerializer
+    # ❌ OLD: serializer_class = UserSerializer
+    # ✅ FIX: Use the public serializer for public views
+    serializer_class = PublicUserSerializer 
     permission_classes = [permissions.AllowAny]
     lookup_field = 'pk'
 
@@ -111,6 +117,8 @@ class UserDetailByIdView(generics.RetrieveAPIView):
         except Exception as e:
             logger.error(f"❌ UserDetailByIdView error: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# ...
 
 
 class ChangePasswordView(APIView):
