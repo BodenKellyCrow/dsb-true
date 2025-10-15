@@ -19,7 +19,7 @@ from .models import (
 from .serializers import (
     UserSerializer, ProjectSerializer, TransactionSerializer,
     UserProfileSerializer, SocialPostSerializer, LikeSerializer,
-    CommentSerializer, ConversationSerializer, MessageSerializer
+    CommentSerializer, ConversationSerializer, MessageSerializer, PublicUserSerializer
 )
 
 
