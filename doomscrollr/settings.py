@@ -35,7 +35,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "dj_rest_auth.registration",
     # ❌ REMOVED: "rest_framework.authtoken" - this was causing the token model conflict
-
+    "rest_framework_simplejwt.token_blacklist", 
     # Local apps
     "projects",
 ]
@@ -138,14 +138,16 @@ REST_AUTH = {
     "TOKEN_MODEL": None,  # ← This disables the legacy token model completely
 }
 
-# ✅ SimpleJWT Configuration
+# In settings.py, update SIMPLE_JWT:
+
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),  # ← Changed from 1 day to 15 mins (more secure)
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
     "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": True,
+    "BLACKLIST_AFTER_ROTATION": False,  # ✅ Disable blacklist for now to debug
     "AUTH_HEADER_TYPES": ("Bearer",),
     "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "UPDATE_LAST_LOGIN": False,
 }
 
 # --- allauth / dj-rest-auth ---

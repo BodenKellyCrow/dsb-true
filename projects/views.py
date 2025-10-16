@@ -177,34 +177,76 @@ class ProjectDetailView(generics.RetrieveAPIView):
     permission_classes = [permissions.AllowAny]
 
 
+# In projects/views.py - Update TransactionCreateView
+
 class TransactionCreateView(generics.CreateAPIView):
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def perform_create(self, serializer):
-        sender = self.request.user
-        receiver = serializer.validated_data["receiver"]
-        project = serializer.validated_data["project"]
-        amount = serializer.validated_data["amount"]
+    def create(self, request, *args, **kwargs):
+        """Custom create to handle transaction logic properly"""
+        try:
+            receiver_id = request.data.get('receiver')
+            project_id = request.data.get('project')
+            amount = request.data.get('amount')
 
-        with transaction.atomic():
-            sender_profile = sender.userprofile
-            receiver_profile = receiver.userprofile
+            # Validate inputs
+            if not all([receiver_id, project_id, amount]):
+                return Response(
+                    {"error": "receiver, project, and amount are required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            if sender_profile.balance < amount:
-                raise ValidationError("Insufficient balance.")
+            # Get objects
+            try:
+                receiver = User.objects.get(id=receiver_id)
+                project = Project.objects.get(id=project_id)
+                amount = float(amount)
+            except (User.DoesNotExist, Project.DoesNotExist, ValueError) as e:
+                return Response(
+                    {"error": str(e)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            sender_profile.balance -= amount
-            receiver_profile.balance += amount
-            project.current_funding += amount
+            sender = request.user
 
-            sender_profile.save()
-            receiver_profile.save()
-            project.save()
+            # Perform transaction
+            with transaction.atomic():
+                sender_profile = sender.userprofile
+                receiver_profile = receiver.userprofile
 
-            serializer.save(sender=sender)
+                if sender_profile.balance < amount:
+                    return Response(
+                        {"error": "Insufficient balance."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
+                sender_profile.balance -= amount
+                receiver_profile.balance += amount
+                project.current_funding += amount
+
+                sender_profile.save()
+                receiver_profile.save()
+                project.save()
+
+                # Create transaction record
+                trans = Transaction.objects.create(
+                    sender=sender,
+                    receiver=receiver,
+                    project=project,
+                    amount=amount
+                )
+
+                serializer = self.get_serializer(trans)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"❌ Transaction error: {str(e)}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 # -------------------------------
 # SOCIAL POSTS + ENGAGEMENT
