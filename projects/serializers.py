@@ -195,6 +195,15 @@ class SocialPostSerializer(serializers.ModelSerializer):
 # -------------------
 # MESSAGING
 # -------------------
+# ✅ ADDED: This was missing and caused the ImportError
+class ConversationSerializer(serializers.ModelSerializer):
+    user1_username = serializers.CharField(source='user1.username', read_only=True)
+    user2_username = serializers.CharField(source='user2.username', read_only=True)
+
+    class Meta:
+        model = Conversation
+        fields = ['id', 'user1', 'user2', 'user1_username', 'user2_username', 'created_at']
+
 # ✅ FIX: MessageSerializer now correctly maps fields for the chat system to work with views.py
 class MessageSerializer(serializers.ModelSerializer):
     sender_username = serializers.CharField(source='sender.username', read_only=True)
