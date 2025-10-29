@@ -4,6 +4,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import transaction, models
 from rest_framework import generics, permissions, status
+# ✅ ADDED: MultiPartParser to handle file uploads (profile_image)
+from rest_framework.parsers import MultiPartParser, FormParser 
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -59,10 +61,12 @@ class UserListView(generics.ListAPIView):
     """
     Public user list endpoint used by the frontend Explore page.
     """
-    serializer_class = UserSerializer
+    # ✅ FIX: Use PublicUserSerializer for public lists
+    serializer_class = PublicUserSerializer
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
+        # We need to select_related('userprofile') for the serializer fields (bio, profile_image)
         return User.objects.all().select_related('userprofile')
 
     def list(self, request, *args, **kwargs):
@@ -76,6 +80,8 @@ class UserListView(generics.ListAPIView):
 class UserDetailView(APIView):
     """Get or update the currently authenticated user's details."""
     permission_classes = [permissions.IsAuthenticated]
+    # ✅ FIX 1: Add parsers to correctly handle profile image file uploads (multipart/form-data)
+    parser_classes = [MultiPartParser, FormParser]
 
     def get(self, request):
         try:
@@ -86,9 +92,13 @@ class UserDetailView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def patch(self, request):
-        """Partial update of user profile"""
+        """Partial update of user profile, including file upload (image)"""
         try:
+            # The serializer handles validation and saving User and UserProfile fields
             serializer = UserSerializer(request.user, data=request.data, partial=True)
+            
+            # ✅ FIX 2: Ensure the user's current password is NOT required for profile updates
+            # The serializer update method in projects/serializers.py now handles complex fields
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data)
@@ -98,15 +108,9 @@ class UserDetailView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# projects/views.py
-
-# ... (around line 105)
-
 class UserDetailByIdView(generics.RetrieveAPIView):
     """Get a single user's details by ID"""
     queryset = User.objects.all().select_related('userprofile')
-    # ❌ OLD: serializer_class = UserSerializer
-    # ✅ FIX: Use the public serializer for public views
     serializer_class = PublicUserSerializer 
     permission_classes = [permissions.AllowAny]
     lookup_field = 'pk'
@@ -117,8 +121,6 @@ class UserDetailByIdView(generics.RetrieveAPIView):
         except Exception as e:
             logger.error(f"❌ UserDetailByIdView error: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-# ...
 
 
 class ChangePasswordView(APIView):
@@ -149,6 +151,65 @@ class ChangePasswordView(APIView):
             return Response({"success": "Password updated successfully."})
         except Exception as e:
             logger.error(f"❌ ChangePasswordView error: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# -------------------------------
+# FOLLOW TOGGLE
+# -------------------------------
+
+class FollowToggleView(APIView):
+    """
+    Follow or unfollow a user by ID.
+    Endpoint: /users/<pk>/follow_toggle/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            # 1. Retrieve the user being targeted (to follow/unfollow)
+            # Use select_related here only if needed, but the primary user call is fine
+            target_user = User.objects.get(pk=pk)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. Prevent self-following
+        if target_user == request.user:
+            return Response({"error": "You cannot follow yourself."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 3. Get the target user's profile to access the 'followers' M2M field
+            target_profile = target_user.userprofile
+
+            # 4. Check the current following status
+            is_following = target_profile.followers.filter(id=request.user.id).exists()
+
+            if is_following:
+                # 5. UNFOLLOW action: Remove the current user from the target's followers list
+                target_profile.followers.remove(request.user)
+                message = f"Successfully unfollowed @{target_user.username}"
+                action = "unfollowed"
+            else:
+                # 5. FOLLOW action: Add the current user to the target's followers list
+                target_profile.followers.add(request.user)
+                message = f"Successfully followed @{target_user.username}"
+                action = "followed"
+
+            # NOTE: M2M relationships (like followers.add/remove) automatically save the change, 
+            # so target_profile.save() is typically NOT required here.
+
+            # 6. Return the updated status and a success message
+            return Response(
+                {
+                    "message": message, 
+                    "is_following": not is_following, # The new status
+                    "action": action
+                }, 
+                status=status.HTTP_200_OK
+            )
+        except UserProfile.DoesNotExist:
+            return Response({"error": "Target user profile not found."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            logger.error(f"❌ FollowToggleView error: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -296,11 +357,15 @@ class ConversationListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        # ✅ FIX: Ensure we select related user profiles to avoid N+1 queries in the serializer
         return Conversation.objects.filter(
             models.Q(user1=self.request.user) | models.Q(user2=self.request.user)
-        )
+        ).select_related('user1__userprofile', 'user2__userprofile')
 
     def perform_create(self, serializer):
+        # We assume the incoming data includes 'user2' (the other user's ID)
+        # The serializer should validate that 'user2' is present
+        # user1 is automatically set to the requesting user
         serializer.save(user1=self.request.user)
 
 
@@ -310,61 +375,28 @@ class MessageListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         conversation_id = self.kwargs["conversation_id"]
-        return Message.objects.filter(conversation_id=conversation_id).order_by("timestamp")
+        # ✅ FIX: Ensure we select related sender profile to avoid N+1 queries in the serializer
+        # Also, filter by conversation AND ensure the user is part of that conversation for security
+        
+        user = self.request.user
+        
+        # Security Check: Ensure the user is part of the conversation
+        conversation = Conversation.objects.filter(
+            id=conversation_id
+        ).filter(
+            models.Q(user1=user) | models.Q(user2=user)
+        ).first()
+
+        if not conversation:
+            # Return empty queryset or raise exception if conversation is not found or user is not a participant
+            return Message.objects.none()
+            
+        return Message.objects.filter(
+            conversation_id=conversation_id
+        ).select_related('sender__userprofile').order_by("timestamp")
+
 
     def perform_create(self, serializer):
         conversation_id = self.kwargs["conversation_id"]
+        # This view's perform_create is robust: it injects sender and conversation_id
         serializer.save(sender=self.request.user, conversation_id=conversation_id)
-
-# projects/views.py (Ensure this class is present and correctly indented)
-# ...
-
-# projects/views.py
-
-# ... (inside the class definition) ...
-
-class FollowToggleView(APIView):
-    """
-    Follow or unfollow a user by ID.
-    Endpoint: /users/<pk>/follow_toggle/
-    """
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, pk):
-        try:
-            # 1. Retrieve the user being targeted (to follow/unfollow)
-            target_user = User.objects.select_related('userprofile').get(pk=pk)
-        except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        # 2. Prevent self-following
-        if target_user == request.user:
-            return Response({"error": "You cannot follow yourself."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 3. Get the target user's profile to access the 'followers' M2M field
-        target_profile = target_user.userprofile
-
-        # 4. Check the current following status
-        # We check if the current user (request.user) is in the target user's followers list.
-        is_following = target_profile.followers.filter(id=request.user.id).exists()
-
-        if is_following:
-            # 5. UNFOLLOW action: Remove the current user from the target's followers list
-            target_profile.followers.remove(request.user)
-            message = f"Successfully unfollowed @{target_user.username}"
-            action = "unfollowed"
-        else:
-            # 5. FOLLOW action: Add the current user to the target's followers list
-            target_profile.followers.add(request.user)
-            message = f"Successfully followed @{target_user.username}"
-            action = "followed"
-
-        # 6. Return the updated status and a success message
-        return Response(
-            {
-                "message": message, 
-                "is_following": not is_following, # The new status
-                "action": action
-            }, 
-            status=status.HTTP_200_OK
-        )
