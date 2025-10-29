@@ -6,6 +6,8 @@ from .models import (
     SocialPost, Like, Comment,
     Conversation, Message
 )
+import logging
+logger = logging.getLogger(__name__)
 
 
 # -------------------
@@ -21,7 +23,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False)
     
-    # ✅ Use SerializerMethodField to safely handle missing profiles
     bio = serializers.SerializerMethodField()
     profile_image = serializers.SerializerMethodField()
 
@@ -30,57 +31,60 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'email', 'password', 'bio', 'profile_image']
 
     def get_bio(self, obj):
-        """Safely get bio, return empty string if no profile"""
         try:
             return obj.userprofile.bio or ''
         except (AttributeError, UserProfile.DoesNotExist):
             return ''
 
     def get_profile_image(self, obj):
-        """Safely get profile image URL, return None if no profile"""
         try:
             if obj.userprofile.profile_image:
-                return obj.userprofile.profile_image.url
+                # IMPORTANT: Return the file URL when accessed via HTTP (using .url)
+                return obj.userprofile.profile_image.url 
         except (AttributeError, UserProfile.DoesNotExist):
             pass
         return None
 
     def create(self, validated_data):
-        """Create user and ensure profile exists"""
         password = validated_data.pop("password", None)
         
-        # Create user
         user = User.objects.create(**validated_data)
         if password:
             user.set_password(password)
             user.save()
 
-        # ✅ ALWAYS create profile
         UserProfile.objects.get_or_create(user=user)
         return user
 
+    # ✅ FIX: Enhanced update method to correctly handle profile_image and bio
     def update(self, instance, validated_data):
-        """Update user and profile"""
-        # Handle password
+        # 1. Handle User fields (like username)
+        for attr, value in validated_data.items():
+            if attr not in ['password']: # Exclude password and profile fields 
+                setattr(instance, attr, value)
+        
+        # 2. Handle Password
         password = validated_data.pop("password", None)
         if password:
             instance.set_password(password)
-
-        # Update user fields
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
+            
         instance.save()
 
-        # ✅ Ensure profile exists and update it
+        # 3. Handle UserProfile fields (bio and profile_image)
         profile, _ = UserProfile.objects.get_or_create(user=instance)
         
-        # Check for bio and profile_image in initial_data (from form)
+        # profile_image and bio are sent via self.initial_data (Form Data)
         if 'bio' in self.initial_data:
             profile.bio = self.initial_data['bio']
+            
+        # Check if a new image file was uploaded
         if 'profile_image' in self.initial_data and self.initial_data['profile_image']:
+            # The uploaded file is in self.initial_data, not validated_data
             profile.profile_image = self.initial_data['profile_image']
-        profile.save()
+        
+        # Note: DRF handles deletion of old files when a new one is assigned
 
+        profile.save()
         return instance
 
 
@@ -114,16 +118,20 @@ class PublicUserSerializer(serializers.ModelSerializer):
             pass
         return None
 
-    # ✅ FIX 3: New method to check if the requesting user is following 'obj'
+    # ✅ FIX 3: New method to check if the requesting user is following 'obj' (Fixes Priority 3 initialization)
     def get_is_following(self, obj):
         request = self.context.get('request')
+        # Check if we have a request and a logged-in user
         if request and request.user.is_authenticated:
-            # Check if the currently viewed user (obj) has the requesting user (request.user) in their followers list.
+            # Prevent checking if the user is following themselves (though the view blocks this)
+            if obj.id == request.user.id:
+                return False
+                
             try:
-                # Assuming UserProfile has a 'followers' Many-to-Many field pointing to User
+                # Check if the current user is in the target user's followers list.
                 return obj.userprofile.followers.filter(id=request.user.id).exists()
             except (AttributeError, UserProfile.DoesNotExist):
-                # Should not happen with the previous fix, but safe check
+                # Safety fallback
                 pass
         return False
 
@@ -131,7 +139,8 @@ class PublicUserSerializer(serializers.ModelSerializer):
 # PROJECTS + FUNDING
 # -------------------
 class ProjectSerializer(serializers.ModelSerializer):
-    owner = PublicUserSerializer(read_only=True)
+    # Pass the request context down to PublicUserSerializer
+    owner = PublicUserSerializer(read_only=True, context={'request': serializers.CurrentUserDefault()}) 
     owner_username = serializers.CharField(source='owner.username', read_only=True)
 
     class Meta:
@@ -174,7 +183,8 @@ class LikeSerializer(serializers.ModelSerializer):
 
 class SocialPostSerializer(serializers.ModelSerializer):
     author = PublicUserSerializer(read_only=True)
-    likes = LikeSerializer(many=True, read_only=True)
+    # Ensure likes and comments are retrieved correctly if implemented in models
+    likes = LikeSerializer(many=True, read_only=True) 
     comments = CommentSerializer(many=True, read_only=True)
 
     class Meta:
@@ -185,18 +195,12 @@ class SocialPostSerializer(serializers.ModelSerializer):
 # -------------------
 # MESSAGING
 # -------------------
-class ConversationSerializer(serializers.ModelSerializer):
-    user1_username = serializers.CharField(source='user1.username', read_only=True)
-    user2_username = serializers.CharField(source='user2.username', read_only=True)
-
-    class Meta:
-        model = Conversation
-        fields = ['id', 'user1', 'user2', 'user1_username', 'user2_username', 'created_at']
-
-
+# ✅ FIX: MessageSerializer now correctly maps fields for the chat system to work with views.py
 class MessageSerializer(serializers.ModelSerializer):
     sender_username = serializers.CharField(source='sender.username', read_only=True)
 
     class Meta:
         model = Message
+        # Ensure 'text' is writeable, and 'conversation' is read/write
         fields = ['id', 'conversation', 'sender', 'sender_username', 'text', 'timestamp']
+        read_only_fields = ['sender'] # Sender is set automatically in MessageListCreateView

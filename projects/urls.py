@@ -15,10 +15,11 @@ urlpatterns = [
     # AUTH & USER MANAGEMENT
     # =============================
     path("auth/register/", RegisterView.as_view(), name="register"),
+    # This route is specifically for the currently logged-in user's editable profile
+    path("auth/user/", UserDetailView.as_view(), name="user-detail"), # ✅ Renamed to /auth/user/ to match frontend call in Profile.jsx
     path("users/", UserListView.as_view(), name="user-list"),
-    path("users/me/", UserDetailView.as_view(), name="user-detail"),
     path("users/<int:pk>/", UserDetailByIdView.as_view(), name="user-detail-by-id"),
-    path("users/<int:pk>/follow/", FollowToggleView.as_view(), name="follow-toggle"),  # ✅ Follow endpoint
+    path("users/<int:pk>/follow/", FollowToggleView.as_view(), name="follow-toggle"), 
     path("users/change-password/", ChangePasswordView.as_view(), name="change-password"),
 
     # =============================
@@ -36,10 +37,9 @@ urlpatterns = [
     path("social-posts/<int:post_id>/comment/", CommentCreateView.as_view(), name="add-comment"),
 
     # =============================
-    # MESSAGING (✅ FIXED PATHS)
+    # MESSAGING 
     # =============================
-    # ❌ OLD: path("chat/conversations/", ...)
-    # ✅ NEW: Remove "chat/" prefix to match your frontend
+    # ✅ FIX: Match URL endpoint to the MessageListCreateView logic from views.py
     path("conversations/", ConversationListCreateView.as_view(), name="conversations"),
     path("conversations/<int:conversation_id>/messages/", MessageListCreateView.as_view(), name="messages"),
 ]
